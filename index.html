@@ -46,7 +46,7 @@ if (CONFIG_OK) {
 }
 const uid = () => Math.random().toString(36).slice(2, 10);
 function emptyConfig() {
-  return { sessionId: uid(), title: "", questions: [], activeIndex: -1, revealResults: true, started: false };
+  return { sessionId: uid(), title: "", questions: [], activeIndex: -1, revealResults: true, intermission: false, started: false };
 }
 const clean = (o) => JSON.parse(JSON.stringify(o));
 function listenConfig(cb) {
@@ -79,6 +79,16 @@ function listenVotes(sid, qi, cb) {
 function writeVote(sid, qi, pid, val) {
   if (db) db.ref("votes/" + sid + "/" + qi + "/" + pid).set(clean(val));
 }
+async function fetchAllVotes(sid) {
+  if (!db) return {};
+  const snap = await db.ref("votes/" + sid).get();
+  const val = snap.val() || {};
+  const out = {};
+  Object.keys(val).forEach((qi) => {
+    out[qi] = normalizeVotes(val[qi]);
+  });
+  return out;
+}
 function App() {
   const [view, setView] = useState("role");
   const [config, setConfig] = useState(null);
@@ -98,7 +108,7 @@ function App() {
   if (!CONFIG_OK) {
     return /* @__PURE__ */ React.createElement("div", { className: "ip-root" }, /* @__PURE__ */ React.createElement(StyleTag, null), /* @__PURE__ */ React.createElement(ConfigNotice, null));
   }
-  return /* @__PURE__ */ React.createElement("div", { className: "ip-root" }, /* @__PURE__ */ React.createElement(StyleTag, null), loading ? /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement(SoccerBall, { spin: true }), " ", /* @__PURE__ */ React.createElement("span", { className: "ip-loading" }, "LOADING\u2026")) : view === "role" ? /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-root" }, /* @__PURE__ */ React.createElement(StyleTag, null), loading ? /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement(SoccerBall, { spin: true }), " ", /* @__PURE__ */ React.createElement("span", { className: "ip-loading" }, "LOADING…")) : view === "role" ? /* @__PURE__ */ React.createElement(
     RoleSelect,
     {
       hasPoll: !!(config && config.questions && config.questions.length),
@@ -146,15 +156,15 @@ function SoccerBall({ spin, className = "", size = 64 }) {
   );
 }
 function RoleSelect({ hasPoll, title, onCoach, onPlayer }) {
-  return /* @__PURE__ */ React.createElement("div", { className: "ip-center ip-pitch ip-pitch-full" }, /* @__PURE__ */ React.createElement(PitchLines, null), /* @__PURE__ */ React.createElement("div", { className: "ip-hero" }, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "FIFA-STYLE LIVE POLL \xB7 \u63A2\u7A76 \xD7 \u82F1\u8A9E"), /* @__PURE__ */ React.createElement("h1", { className: "ip-h1" }, /* @__PURE__ */ React.createElement("span", { className: "ip-h1-en" }, "INQUIRY"), /* @__PURE__ */ React.createElement("span", { className: "ip-h1-jp" }, "\u554F\u3044\u3092\u3001\u30AD\u30C3\u30AF\u30AA\u30D5\u3002")), /* @__PURE__ */ React.createElement("p", { className: "ip-lead" }, "\u30B9\u30E9\u30A4\u30C9\u306B\u5408\u308F\u305B\u3066\u300C\u554F\u3044\u300D\u30921\u554F\u305A\u3064\u30D4\u30C3\u30C1\u306B\u9001\u308A\u51FA\u3057\u3001\u30E1\u30F3\u30D0\u30FC\u306E\u56DE\u7B54\u3092\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u3067\u96C6\u8A08\u3002 \u7B54\u3048\u308B\u305F\u3073\u306B ", /* @__PURE__ */ React.createElement("b", { className: "ip-goal-word" }, "GOAL!"), " \u304C\u6C7A\u307E\u308A\u307E\u3059\u3002"), hasPoll && title ? /* @__PURE__ */ React.createElement("div", { className: "ip-saved" }, "SAVED\xA0 ", /* @__PURE__ */ React.createElement("b", null, title || "Untitled")) : null, /* @__PURE__ */ React.createElement("div", { className: "ip-role-grid" }, /* @__PURE__ */ React.createElement("button", { className: "ip-team-card ip-team-home", onClick: onCoach }, /* @__PURE__ */ React.createElement("span", { className: "ip-team-no" }, "10"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-role" }, "COACH"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-jp" }, "\u767A\u8868\u8005 \u2014 \u554F\u3044\u3092\u6E96\u5099\u3057\u3066\u9032\u884C")), /* @__PURE__ */ React.createElement("button", { className: "ip-team-card ip-team-away", onClick: onPlayer }, /* @__PURE__ */ React.createElement("span", { className: "ip-team-no" }, "07"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-role" }, "PLAYER"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-jp" }, "\u53C2\u52A0\u8005 \u2014 \u3053\u306E\u7AEF\u672B\u3067\u56DE\u7B54"))), /* @__PURE__ */ React.createElement("p", { className: "ip-fineprint" }, "PLAYER \u306F\u3053\u306E\u30DA\u30FC\u30B8\u306EURL\u3092\u958B\u304F\u3060\u3051\u3067\u53C2\u52A0\u3067\u304D\u307E\u3059\u3002\u56DE\u7B54\u306F\u533F\u540D\u3067\u3001\u958B\u3044\u305F\u5168\u54E1\u3068\u5171\u6709\u3055\u308C\u307E\u3059\u3002")));
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-center ip-pitch ip-pitch-full" }, /* @__PURE__ */ React.createElement(PitchLines, null), /* @__PURE__ */ React.createElement("div", { className: "ip-hero" }, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "FIFA-STYLE LIVE POLL · 探究 × 英語"), /* @__PURE__ */ React.createElement("h1", { className: "ip-h1" }, /* @__PURE__ */ React.createElement("span", { className: "ip-h1-en" }, "INQUIRY"), /* @__PURE__ */ React.createElement("span", { className: "ip-h1-jp" }, "問いを、キックオフ。")), /* @__PURE__ */ React.createElement("p", { className: "ip-lead" }, "スライドに合わせて「問い」を1問ずつピッチに送り出し、メンバーの回答をリアルタイムで集計。 答えるたびに ", /* @__PURE__ */ React.createElement("b", { className: "ip-goal-word" }, "GOAL!"), " が決まります。"), hasPoll && title ? /* @__PURE__ */ React.createElement("div", { className: "ip-saved" }, "SAVED  ", /* @__PURE__ */ React.createElement("b", null, title || "Untitled")) : null, /* @__PURE__ */ React.createElement("div", { className: "ip-role-grid" }, /* @__PURE__ */ React.createElement("button", { className: "ip-team-card ip-team-home", onClick: onCoach }, /* @__PURE__ */ React.createElement("span", { className: "ip-team-no" }, "10"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-role" }, "COACH"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-jp" }, "発表者 — 問いを準備して進行")), /* @__PURE__ */ React.createElement("button", { className: "ip-team-card ip-team-away", onClick: onPlayer }, /* @__PURE__ */ React.createElement("span", { className: "ip-team-no" }, "07"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-role" }, "PLAYER"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-jp" }, "参加者 — この端末で回答"))), /* @__PURE__ */ React.createElement("p", { className: "ip-fineprint" }, "PLAYER はこのページのURLを開くだけで参加できます。回答は匿名で、開いた全員と共有されます。")));
 }
 function PitchLines() {
   return /* @__PURE__ */ React.createElement("div", { className: "ip-lines", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("div", { className: "ip-line-half" }), /* @__PURE__ */ React.createElement("div", { className: "ip-circle-center" }), /* @__PURE__ */ React.createElement("div", { className: "ip-spot" }), /* @__PURE__ */ React.createElement("div", { className: "ip-box ip-box-l" }), /* @__PURE__ */ React.createElement("div", { className: "ip-box ip-box-r" }));
 }
 const QTYPES = [
-  { id: "choice", label: "\u9078\u629E\u5F0F", en: "Choice" },
-  { id: "scale", label: "\u6BB5\u968E\u8A55\u4FA1", en: "Scale" },
-  { id: "text", label: "\u81EA\u7531\u8A18\u8FF0", en: "Open" }
+  { id: "choice", label: "選択式", en: "Choice" },
+  { id: "scale", label: "段階評価", en: "Scale" },
+  { id: "text", label: "自由記述", en: "Open" }
 ];
 function Setup({ config, onCancel, onSave, onStart }) {
   const [title, setTitle] = useState(config.title || "");
@@ -183,39 +193,39 @@ function Setup({ config, onCancel, onSave, onStart }) {
     [c[i], c[j]] = [c[j], c[i]];
     return c;
   });
-  return /* @__PURE__ */ React.createElement("div", { className: "ip-page" }, /* @__PURE__ */ React.createElement("header", { className: "ip-topbar" }, /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: onCancel }, "\u2190 BACK"), /* @__PURE__ */ React.createElement("div", { className: "ip-topbar-title" }, "MATCH SETUP ", /* @__PURE__ */ React.createElement("span", { className: "ip-tt-jp" }, "\u554F\u3044\u306E\u6E96\u5099")), /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: () => onSave(current), disabled: !questions.length }, "SAVE")), /* @__PURE__ */ React.createElement("div", { className: "ip-setup" }, /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "TITLE / \u30BF\u30A4\u30C8\u30EB\uFF08\u4EFB\u610F\uFF09"), /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-page" }, /* @__PURE__ */ React.createElement("header", { className: "ip-topbar" }, /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: onCancel }, "← BACK"), /* @__PURE__ */ React.createElement("div", { className: "ip-topbar-title" }, "MATCH SETUP ", /* @__PURE__ */ React.createElement("span", { className: "ip-tt-jp" }, "問いの準備")), /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: () => onSave(current), disabled: !questions.length }, "SAVE")), /* @__PURE__ */ React.createElement("div", { className: "ip-setup" }, /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "TITLE / タイトル（任意）"), /* @__PURE__ */ React.createElement(
     "input",
     {
       className: "ip-input ip-input-lg",
       value: title,
-      placeholder: "\u4F8B\uFF09Inquiry-based English Learning",
+      placeholder: "例）Inquiry-based English Learning",
       onChange: (e) => setTitle(e.target.value)
     }
-  )), /* @__PURE__ */ React.createElement("div", { className: "ip-q-list" }, questions.length === 0 && !editing ? /* @__PURE__ */ React.createElement("div", { className: "ip-empty" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 34 }), /* @__PURE__ */ React.createElement("span", null, "\u307E\u3060\u554F\u3044\u304C\u3042\u308A\u307E\u305B\u3093\u3002\u4E0B\u306E\u30DC\u30BF\u30F3\u3067\u6700\u521D\u306E\u554F\u3044\u3092\u30AD\u30C3\u30AF\u30AA\u30D5\u3002")) : null, questions.map((q, i) => /* @__PURE__ */ React.createElement("div", { className: "ip-q-item", key: q.id }, /* @__PURE__ */ React.createElement("div", { className: "ip-q-no" }, String(i + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("div", { className: "ip-q-body" }, /* @__PURE__ */ React.createElement("div", { className: "ip-q-text" }, q.text || /* @__PURE__ */ React.createElement("em", { className: "ip-muted" }, "\uFF08\u554F\u3044\u304C\u672A\u5165\u529B\uFF09")), /* @__PURE__ */ React.createElement("div", { className: "ip-q-meta" }, typeLabel(q))), /* @__PURE__ */ React.createElement("div", { className: "ip-q-actions" }, /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "\u4E0A\u3078", onClick: () => move(i, -1), disabled: i === 0 }, "\u2191"), /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "\u4E0B\u3078", onClick: () => move(i, 1), disabled: i === questions.length - 1 }, "\u2193"), /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "\u7DE8\u96C6", onClick: () => setEditing(q) }, "\u270E"), /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", { className: "ip-q-list" }, questions.length === 0 && !editing ? /* @__PURE__ */ React.createElement("div", { className: "ip-empty" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 34 }), /* @__PURE__ */ React.createElement("span", null, "まだ問いがありません。下のボタンで最初の問いをキックオフ。")) : null, questions.map((q, i) => /* @__PURE__ */ React.createElement("div", { className: "ip-q-item", key: q.id }, /* @__PURE__ */ React.createElement("div", { className: "ip-q-no" }, String(i + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("div", { className: "ip-q-body" }, /* @__PURE__ */ React.createElement("div", { className: "ip-q-text" }, q.text || /* @__PURE__ */ React.createElement("em", { className: "ip-muted" }, "（問いが未入力）")), /* @__PURE__ */ React.createElement("div", { className: "ip-q-meta" }, typeLabel(q))), /* @__PURE__ */ React.createElement("div", { className: "ip-q-actions" }, /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "上へ", onClick: () => move(i, -1), disabled: i === 0 }, "↑"), /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "下へ", onClick: () => move(i, 1), disabled: i === questions.length - 1 }, "↓"), /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "編集", onClick: () => setEditing(q) }, "✎"), /* @__PURE__ */ React.createElement(
     "button",
     {
       className: "ip-icon ip-icon-red",
-      title: "\u524A\u9664",
+      title: "削除",
       onClick: () => setQuestions((p) => p.filter((x) => x.id !== q.id))
     },
-    "\u2715"
-  ))))), editing ? /* @__PURE__ */ React.createElement(QuestionEditor, { draft: editing, onCancel: () => setEditing(null), onCommit: commitDraft }) : /* @__PURE__ */ React.createElement("div", { className: "ip-add-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-add-label" }, "ADD INQUIRY"), QTYPES.map((t) => /* @__PURE__ */ React.createElement("button", { key: t.id, className: "ip-chip", onClick: () => startDraft(t.id) }, "+ ", t.en, /* @__PURE__ */ React.createElement("span", { className: "ip-chip-jp" }, t.label)))), /* @__PURE__ */ React.createElement("div", { className: "ip-start-bar" }, /* @__PURE__ */ React.createElement("button", { className: "ip-kickoff", disabled: !questions.length || !!editing, onClick: () => onStart(current) }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 26 }), " KICK OFF \u2014 \u767A\u8868\u3092\u958B\u59CB"), /* @__PURE__ */ React.createElement("p", { className: "ip-fineprint" }, "\u958B\u59CB\u3059\u308B\u3068\u65B0\u3057\u3044\u8A66\u5408\uFF08\u30BB\u30C3\u30B7\u30E7\u30F3\uFF09\u304C\u59CB\u307E\u308A\u3001\u56DE\u7B54\u304C\u30EA\u30BB\u30C3\u30C8\u3055\u308C\u307E\u3059\u3002"))));
+    "✕"
+  ))))), editing ? /* @__PURE__ */ React.createElement(QuestionEditor, { draft: editing, onCancel: () => setEditing(null), onCommit: commitDraft }) : /* @__PURE__ */ React.createElement("div", { className: "ip-add-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-add-label" }, "ADD INQUIRY"), QTYPES.map((t) => /* @__PURE__ */ React.createElement("button", { key: t.id, className: "ip-chip", onClick: () => startDraft(t.id) }, "+ ", t.en, /* @__PURE__ */ React.createElement("span", { className: "ip-chip-jp" }, t.label)))), /* @__PURE__ */ React.createElement("div", { className: "ip-start-bar" }, /* @__PURE__ */ React.createElement("button", { className: "ip-kickoff", disabled: !questions.length || !!editing, onClick: () => onStart(current) }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 26 }), " KICK OFF — 発表を開始"), /* @__PURE__ */ React.createElement("p", { className: "ip-fineprint" }, "開始すると新しい試合（セッション）が始まり、回答がリセットされます。"))));
 }
 function typeLabel(q) {
-  if (q.type === "choice") return `Choice \xB7 ${(q.options || []).filter(Boolean).length}\u629E`;
-  if (q.type === "scale") return `Scale \xB7 ${q.scaleMin}\u2013${q.scaleMax}`;
-  return "Open response \xB7 \u81EA\u7531\u8A18\u8FF0";
+  if (q.type === "choice") return `Choice · ${(q.options || []).filter(Boolean).length}択`;
+  if (q.type === "scale") return `Scale · ${q.scaleMin}–${q.scaleMax}`;
+  return "Open response · 自由記述";
 }
 function QuestionEditor({ draft, onCancel, onCommit }) {
   var _a, _b;
   const [q, setQ] = useState(draft);
   const set = (patch) => setQ((p) => ({ ...p, ...patch }));
   const valid = q.text.trim() && (q.type !== "choice" || (q.options || []).filter((o) => o.trim()).length >= 2);
-  return /* @__PURE__ */ React.createElement("div", { className: "ip-editor" }, /* @__PURE__ */ React.createElement("div", { className: "ip-editor-head" }, /* @__PURE__ */ React.createElement("span", { className: "ip-editor-type" }, (_a = QTYPES.find((t) => t.id === q.type)) == null ? void 0 : _a.en, " \xB7 ", (_b = QTYPES.find((t) => t.id === q.type)) == null ? void 0 : _b.label)), /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-editor" }, /* @__PURE__ */ React.createElement("div", { className: "ip-editor-head" }, /* @__PURE__ */ React.createElement("span", { className: "ip-editor-type" }, (_a = QTYPES.find((t) => t.id === q.type)) == null ? void 0 : _a.en, " · ", (_b = QTYPES.find((t) => t.id === q.type)) == null ? void 0 : _b.label)), /* @__PURE__ */ React.createElement(
     "textarea",
     {
       className: "ip-input ip-textarea",
-      placeholder: "\u554F\u3044\u3092\u5165\u529B\uFF08\u82F1\u8A9E\u3067\u3082OK\uFF09",
+      placeholder: "問いを入力（英語でもOK）",
       value: q.text,
       onChange: (e) => set({ text: e.target.value }),
       rows: 2,
@@ -239,8 +249,8 @@ function QuestionEditor({ draft, onCancel, onCommit }) {
       className: "ip-icon ip-icon-red",
       onClick: () => set({ options: q.options.filter((_, j) => j !== i) })
     },
-    "\u2715"
-  ))), q.options.length < 8 && /* @__PURE__ */ React.createElement("button", { className: "ip-chip ip-chip-ghost", onClick: () => set({ options: [...q.options, ""] }) }, "+ \u9078\u629E\u80A2\u3092\u8FFD\u52A0")), q.type === "scale" && /* @__PURE__ */ React.createElement("div", { className: "ip-scale-cfg" }, /* @__PURE__ */ React.createElement("div", { className: "ip-scale-range" }, /* @__PURE__ */ React.createElement("label", null, "MIN", /* @__PURE__ */ React.createElement(
+    "✕"
+  ))), q.options.length < 8 && /* @__PURE__ */ React.createElement("button", { className: "ip-chip ip-chip-ghost", onClick: () => set({ options: [...q.options, ""] }) }, "+ 選択肢を追加")), q.type === "scale" && /* @__PURE__ */ React.createElement("div", { className: "ip-scale-cfg" }, /* @__PURE__ */ React.createElement("div", { className: "ip-scale-range" }, /* @__PURE__ */ React.createElement("label", null, "MIN", /* @__PURE__ */ React.createElement(
     "input",
     {
       className: "ip-input ip-input-num",
@@ -256,25 +266,73 @@ function QuestionEditor({ draft, onCancel, onCommit }) {
       value: q.scaleMax,
       onChange: (e) => set({ scaleMax: clampInt(e.target.value, 2, 10, 5) })
     }
-  ))), /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "\u5DE6\u7AEF\u30E9\u30D9\u30EB"), /* @__PURE__ */ React.createElement("input", { className: "ip-input", value: q.minLabel || "", onChange: (e) => set({ minLabel: e.target.value }) })), /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "\u53F3\u7AEF\u30E9\u30D9\u30EB"), /* @__PURE__ */ React.createElement("input", { className: "ip-input", value: q.maxLabel || "", onChange: (e) => set({ maxLabel: e.target.value }) }))), /* @__PURE__ */ React.createElement("div", { className: "ip-editor-foot" }, /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: onCancel }, "CANCEL"), /* @__PURE__ */ React.createElement(
+  ))), /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "左端ラベル"), /* @__PURE__ */ React.createElement("input", { className: "ip-input", value: q.minLabel || "", onChange: (e) => set({ minLabel: e.target.value }) })), /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "右端ラベル"), /* @__PURE__ */ React.createElement("input", { className: "ip-input", value: q.maxLabel || "", onChange: (e) => set({ maxLabel: e.target.value }) }))), /* @__PURE__ */ React.createElement("div", { className: "ip-editor-foot" }, /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: onCancel }, "CANCEL"), /* @__PURE__ */ React.createElement(
     "button",
     {
       className: "ip-btn-primary",
       disabled: !valid,
       onClick: () => onCommit({ ...q, options: q.options ? q.options.filter((o) => o.trim()) : void 0 })
     },
-    "\u3053\u306E\u554F\u3044\u3092\u4FDD\u5B58"
+    "この問いを保存"
   )));
 }
 function clampInt(v, min, max, fb) {
   const n = parseInt(v, 10);
   return Number.isNaN(n) ? fb : Math.max(min, Math.min(max, n));
 }
+function qTypeName(q) {
+  return q.type === "choice" ? "選択式" : q.type === "scale" ? "段階評価" : "自由記述";
+}
+function answerToText(q, a) {
+  if (q.type === "choice") return q.options && q.options[a] != null ? q.options[a] : String(a);
+  return String(a);
+}
+function csvEscape(s) {
+  const t = String(s == null ? "" : s);
+  return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+}
+function downloadResultsCSV(config, all) {
+  const rows = [["設問No", "設問", "種別", "ニックネーム", "回答"]];
+  (config.questions || []).forEach((q, i) => {
+    const list = all[i] || [];
+    if (list.length === 0) {
+      rows.push([i + 1, q.text, qTypeName(q), "", "(回答なし)"]);
+    } else {
+      list.forEach((v) => rows.push([i + 1, q.text, qTypeName(q), v.n || "名無し", answerToText(q, v.a)]));
+    }
+  });
+  const csv = "\uFEFF" + rows.map((r) => r.map(csvEscape).join(",")).join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  const base = (config.title ? config.title.replace(/[\\/:*?"<>|]/g, "_").trim() : "") || "inquiry-pitch";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = base + "_" + stamp + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1e3);
+}
 function Presenter({ config, pushConfig, onExit, onEdit }) {
   const [votes, setVotes] = useState([]);
+  const [exporting, setExporting] = useState(false);
   const qs = config.questions || [];
   const ai = config.activeIndex;
   const q = ai >= 0 && ai < qs.length ? qs[ai] : null;
+  const handleDownload = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const all = await fetchAllVotes(config.sessionId);
+      downloadResultsCSV(config, all);
+    } catch (e) {
+      console.error("download failed", e);
+      alert("ダウンロードに失敗しました。少し待って再度お試しください。");
+    } finally {
+      setExporting(false);
+    }
+  };
   useEffect(() => {
     if (ai < 0) {
       setVotes([]);
@@ -282,14 +340,19 @@ function Presenter({ config, pushConfig, onExit, onEdit }) {
     }
     return listenVotes(config.sessionId, ai, setVotes);
   }, [ai, config.sessionId]);
-  const go = (dir) => pushConfig({ ...config, activeIndex: Math.max(-1, Math.min(qs.length - 1, ai + dir)) });
-  const jumpTo = (i) => pushConfig({ ...config, activeIndex: i });
+  const inter = !!config.intermission;
+  const isLast = ai >= qs.length - 1;
+  const kickoff = () => pushConfig({ ...config, activeIndex: 0, intermission: false });
+  const stageNext = () => pushConfig({ ...config, activeIndex: ai + 1, intermission: true });
+  const reveal = () => pushConfig({ ...config, intermission: false });
+  const prev = () => pushConfig({ ...config, activeIndex: Math.max(0, ai - 1), intermission: false });
+  const fullTime = () => pushConfig({ ...config, activeIndex: -1, intermission: false });
+  const jumpTo = (i) => pushConfig({ ...config, activeIndex: i, intermission: false });
   const toggleReveal = () => pushConfig({ ...config, revealResults: !config.revealResults });
-  const atEnd = ai >= qs.length - 1;
-  return /* @__PURE__ */ React.createElement("div", { className: "ip-stage-wrap ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, null), /* @__PURE__ */ React.createElement("div", { className: "ip-stage-inner" }, /* @__PURE__ */ React.createElement("header", { className: "ip-scoreboard" }, /* @__PURE__ */ React.createElement("div", { className: "ip-sb-left" }, /* @__PURE__ */ React.createElement("span", { className: "ip-live" }, /* @__PURE__ */ React.createElement("i", { className: "ip-livedot" }), "LIVE"), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-q" }, ai < 0 ? "WARM-UP" : /* @__PURE__ */ React.createElement(React.Fragment, null, "INQUIRY ", /* @__PURE__ */ React.createElement("b", null, String(ai + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-slash" }, "/"), String(qs.length).padStart(2, "0")))), /* @__PURE__ */ React.createElement("div", { className: "ip-sb-right" }, /* @__PURE__ */ React.createElement("div", { className: "ip-sb-count" }, /* @__PURE__ */ React.createElement("span", { className: "ip-sb-count-num" }, votes.length), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-count-lbl" }, "RESPONSES")), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onEdit }, "EDIT"), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onExit }, "EXIT"))), /* @__PURE__ */ React.createElement("main", { className: "ip-stage" }, ai < 0 ? /* @__PURE__ */ React.createElement(WaitingStage, { qs, onPick: jumpTo }) : /* @__PURE__ */ React.createElement("div", { className: "ip-stage-q", key: ai }, /* @__PURE__ */ React.createElement("div", { className: "ip-stage-qtext" }, q.text), /* @__PURE__ */ React.createElement(Results, { q, votes, big: true }))), /* @__PURE__ */ React.createElement("footer", { className: "ip-controls" }, /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl", onClick: () => go(-1), disabled: ai < 0 }, "\u2190 PREV"), /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-toggle", "data-on": config.revealResults, onClick: toggleReveal }, config.revealResults ? "\u7D50\u679C\u3092\u5168\u54E1\u306B\u8868\u793A\u4E2D \u{1F441}" : "\u7D50\u679C\u306F\u4F0F\u305B\u3066\u3044\u307E\u3059 \u25D3"), ai < 0 ? /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-go", onClick: () => go(1) }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 20 }), " KICK OFF") : atEnd ? /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-end", onClick: () => jumpTo(-1) }, "FULL TIME \u{1F3C1}") : /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-go", onClick: () => go(1) }, "NEXT \u2192"))));
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-stage-wrap ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, null), /* @__PURE__ */ React.createElement("div", { className: "ip-stage-inner" }, /* @__PURE__ */ React.createElement("header", { className: "ip-scoreboard" }, /* @__PURE__ */ React.createElement("div", { className: "ip-sb-left" }, /* @__PURE__ */ React.createElement("span", { className: "ip-live" }, /* @__PURE__ */ React.createElement("i", { className: "ip-livedot" }), "LIVE"), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-q" }, ai < 0 ? "WARM-UP" : /* @__PURE__ */ React.createElement(React.Fragment, null, "INQUIRY ", /* @__PURE__ */ React.createElement("b", null, String(ai + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-slash" }, "/"), String(qs.length).padStart(2, "0")))), /* @__PURE__ */ React.createElement("div", { className: "ip-sb-right" }, /* @__PURE__ */ React.createElement("div", { className: "ip-sb-count" }, /* @__PURE__ */ React.createElement("span", { className: "ip-sb-count-num" }, votes.length), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-count-lbl" }, "RESPONSES")), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: handleDownload, disabled: exporting }, exporting ? "…" : "⬇ CSV"), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onEdit }, "EDIT"), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onExit }, "EXIT"))), /* @__PURE__ */ React.createElement("main", { className: "ip-stage" }, ai < 0 ? /* @__PURE__ */ React.createElement(WaitingStage, { qs, onPick: jumpTo }) : inter ? /* @__PURE__ */ React.createElement(Interstitial, { nextNo: ai + 1, total: qs.length }) : /* @__PURE__ */ React.createElement("div", { className: "ip-stage-q", key: ai }, /* @__PURE__ */ React.createElement("div", { className: "ip-stage-qtext" }, q.text), /* @__PURE__ */ React.createElement(Results, { q, votes, big: true }))), /* @__PURE__ */ React.createElement("footer", { className: "ip-controls" }, /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl", onClick: prev, disabled: ai < 0 || ai === 0 && !inter }, "← PREV"), /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-toggle", "data-on": config.revealResults, onClick: toggleReveal }, config.revealResults ? "結果を全員に表示中 👁" : "結果は伏せています ◓"), ai < 0 ? /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-go", onClick: kickoff }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 20 }), " KICK OFF") : inter ? /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-go", onClick: reveal }, "この問いを表示 ▶") : isLast ? /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-end", onClick: fullTime }, "FULL TIME 🏁") : /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-go", onClick: stageNext }, "NEXT →"))));
 }
 function WaitingStage({ qs, onPick }) {
-  return /* @__PURE__ */ React.createElement("div", { className: "ip-waiting-stage" }, /* @__PURE__ */ React.createElement("div", { className: "ip-waiting-head" }, /* @__PURE__ */ React.createElement(BouncingBall, null), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow ip-eyebrow-light" }, "TEAM TALK"), /* @__PURE__ */ React.createElement("h2", { className: "ip-h2" }, "PLAYER\u306E\u6E96\u5099\u304C\u3067\u304D\u305F\u3089\u3001\u554F\u3044\u3092\u30AD\u30C3\u30AF\u30AA\u30D5"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted-light" }, "NEXT \u3067\u9806\u756A\u306B\u9032\u3080\u304B\u3001\u4E0B\u306E\u554F\u3044\u3092\u76F4\u63A5\u30AF\u30EA\u30C3\u30AF\u3002"))), /* @__PURE__ */ React.createElement("div", { className: "ip-lineup" }, qs.map((q, i) => /* @__PURE__ */ React.createElement("button", { className: "ip-lineup-item", key: q.id, onClick: () => onPick(i) }, /* @__PURE__ */ React.createElement("span", { className: "ip-q-no ip-q-no-light" }, String(i + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("span", { className: "ip-lineup-text" }, q.text), /* @__PURE__ */ React.createElement("span", { className: "ip-lineup-type" }, typeLabel(q))))));
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-waiting-stage" }, /* @__PURE__ */ React.createElement("div", { className: "ip-waiting-head" }, /* @__PURE__ */ React.createElement(BouncingBall, null), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow ip-eyebrow-light" }, "TEAM TALK"), /* @__PURE__ */ React.createElement("h2", { className: "ip-h2" }, "PLAYERの準備ができたら、問いをキックオフ"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted-light" }, "NEXT で順番に進むか、下の問いを直接クリック。"))), /* @__PURE__ */ React.createElement("div", { className: "ip-lineup" }, qs.map((q, i) => /* @__PURE__ */ React.createElement("button", { className: "ip-lineup-item", key: q.id, onClick: () => onPick(i) }, /* @__PURE__ */ React.createElement("span", { className: "ip-q-no ip-q-no-light" }, String(i + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("span", { className: "ip-lineup-text" }, q.text), /* @__PURE__ */ React.createElement("span", { className: "ip-lineup-type" }, typeLabel(q))))));
 }
 const CHEERS = ["Ready to play?", "Think in English!", "Your idea matters.", "Take a shot!", "No wrong answers."];
 function Participant({ config, pid, onLeave }) {
@@ -327,37 +390,37 @@ function Participant({ config, pid, onLeave }) {
     setTimeout(() => setShowGoal(false), 1900);
     writeVote(sid, ai, pid, { a: value, n: nickname });
   };
-  if (!config) return /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement(SoccerBall, { spin: true }), /* @__PURE__ */ React.createElement("span", { className: "ip-loading" }, "CONNECTING\u2026"));
+  if (!config) return /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement(SoccerBall, { spin: true }), /* @__PURE__ */ React.createElement("span", { className: "ip-loading" }, "CONNECTING…"));
   if (!nickname) {
     const can = nameDraft.trim().length > 0;
     const register = () => {
       const n = nameDraft.trim().slice(0, 16);
       if (n) setNickname(n);
     };
-    return /* @__PURE__ */ React.createElement("div", { className: "ip-join" }, /* @__PURE__ */ React.createElement("header", { className: "ip-join-top ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, { compact: true }), /* @__PURE__ */ React.createElement("div", { className: "ip-join-top-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-join-title" }, config.title || "INQUIRY PITCH"), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onLeave }, "EXIT"))), /* @__PURE__ */ React.createElement("div", { className: "ip-join-body" }, /* @__PURE__ */ React.createElement("div", { className: "ip-reg" }, /* @__PURE__ */ React.createElement("div", { className: "ip-reg-jersey" }, /* @__PURE__ */ React.createElement("span", { className: "ip-reg-jersey-no" }, "07"), /* @__PURE__ */ React.createElement("span", { className: "ip-reg-jersey-name" }, nameDraft.trim().slice(0, 16).toUpperCase() || "YOUR NAME")), /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "PLAYER REGISTRATION \xB7 \u9078\u624B\u767B\u9332"), /* @__PURE__ */ React.createElement("h2", { className: "ip-join-qtext" }, "\u30CB\u30C3\u30AF\u30CD\u30FC\u30E0\u3092\u5165\u529B"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted" }, "\u56DE\u7B54\u306B\u8868\u793A\u3055\u308C\u308B\u540D\u524D\u3067\u3059\uFF08\u3042\u3068\u304B\u3089\u5909\u3048\u3089\u308C\u307E\u305B\u3093\uFF09\u3002"), /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { className: "ip-join" }, /* @__PURE__ */ React.createElement("header", { className: "ip-join-top ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, { compact: true }), /* @__PURE__ */ React.createElement("div", { className: "ip-join-top-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-join-title" }, config.title || "INQUIRY PITCH"), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onLeave }, "EXIT"))), /* @__PURE__ */ React.createElement("div", { className: "ip-join-body" }, /* @__PURE__ */ React.createElement("div", { className: "ip-reg" }, /* @__PURE__ */ React.createElement("div", { className: "ip-reg-jersey" }, /* @__PURE__ */ React.createElement("span", { className: "ip-reg-jersey-no" }, "07"), /* @__PURE__ */ React.createElement("span", { className: "ip-reg-jersey-name" }, nameDraft.trim().slice(0, 16).toUpperCase() || "YOUR NAME")), /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "PLAYER REGISTRATION · 選手登録"), /* @__PURE__ */ React.createElement("h2", { className: "ip-join-qtext" }, "ニックネームを入力"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted" }, "回答に表示される名前です（あとから変えられません）。"), /* @__PURE__ */ React.createElement(
       "input",
       {
         className: "ip-input ip-input-lg ip-reg-input",
         value: nameDraft,
         maxLength: 16,
-        placeholder: "なおあき/ Naoaki",
+        placeholder: "例）ニックネーム",
         onChange: (e) => setNameDraft(e.target.value),
         onKeyDown: (e) => {
           if (e.key === "Enter") register();
         },
         autoFocus: true
       }
-    ), /* @__PURE__ */ React.createElement("button", { className: "ip-btn-primary ip-btn-block", disabled: !can, onClick: register }, "JOIN THE PITCH \u53C2\u52A0\u3059\u308B"))));
+    ), /* @__PURE__ */ React.createElement("button", { className: "ip-btn-primary ip-btn-block", disabled: !can, onClick: register }, "JOIN THE PITCH 参加する"))));
   }
-  return /* @__PURE__ */ React.createElement("div", { className: "ip-join" }, showGoal && /* @__PURE__ */ React.createElement(GoalOverlay, { key: goalKey, name: nickname }), /* @__PURE__ */ React.createElement("header", { className: "ip-join-top ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, { compact: true }), /* @__PURE__ */ React.createElement("div", { className: "ip-join-top-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-live ip-live-sm" }, /* @__PURE__ */ React.createElement("i", { className: "ip-livedot" }), "LIVE"), /* @__PURE__ */ React.createElement("span", { className: "ip-join-title" }, config.title || "INQUIRY PITCH"), /* @__PURE__ */ React.createElement("span", { className: "ip-myname", title: "\u3042\u306A\u305F\u306E\u540D\u524D" }, "#", nickname), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onLeave }, "EXIT"))), /* @__PURE__ */ React.createElement("div", { className: "ip-join-body" }, ai < 0 ? /* @__PURE__ */ React.createElement("div", { className: "ip-join-wait" }, /* @__PURE__ */ React.createElement(BouncingBall, { big: true }), /* @__PURE__ */ React.createElement("p", { className: "ip-cheer" }, CHEERS[cheer]), /* @__PURE__ */ React.createElement("p", { className: "ip-h2" }, "\u307E\u3082\u306A\u304F\u30AD\u30C3\u30AF\u30AA\u30D5"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted" }, "COACH\u304C\u554F\u3044\u3092\u51FA\u3059\u307E\u3067\u5F85\u6A5F\u4E2D\u2026")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "ip-join-no" }, "INQUIRY ", String(ai + 1).padStart(2, "0"), " / ", String(qs.length).padStart(2, "0")), /* @__PURE__ */ React.createElement("h2", { className: "ip-join-qtext" }, q.text), !answered ? /* @__PURE__ */ React.createElement(AnswerInput, { q, textDraft, setTextDraft, onSubmit: submit }) : /* @__PURE__ */ React.createElement("div", { className: "ip-thanks" }, /* @__PURE__ */ React.createElement("div", { className: "ip-thanks-badge" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 30 })), /* @__PURE__ */ React.createElement("span", { className: "ip-thanks-en" }, "GREAT SHOT!"), /* @__PURE__ */ React.createElement("span", { className: "ip-thanks-jp" }, "\u56DE\u7B54\u3092\u9001\u4FE1\u3057\u307E\u3057\u305F"), q.type !== "text" && /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: () => setAnswers((p) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-join" }, showGoal && /* @__PURE__ */ React.createElement(GoalOverlay, { key: goalKey, name: nickname }), /* @__PURE__ */ React.createElement("header", { className: "ip-join-top ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, { compact: true }), /* @__PURE__ */ React.createElement("div", { className: "ip-join-top-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-live ip-live-sm" }, /* @__PURE__ */ React.createElement("i", { className: "ip-livedot" }), "LIVE"), /* @__PURE__ */ React.createElement("span", { className: "ip-join-title" }, config.title || "INQUIRY PITCH"), /* @__PURE__ */ React.createElement("span", { className: "ip-myname", title: "あなたの名前" }, "#", nickname), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onLeave }, "EXIT"))), /* @__PURE__ */ React.createElement("div", { className: "ip-join-body" }, ai < 0 ? /* @__PURE__ */ React.createElement("div", { className: "ip-join-wait" }, /* @__PURE__ */ React.createElement(BouncingBall, { big: true }), /* @__PURE__ */ React.createElement("p", { className: "ip-cheer" }, CHEERS[cheer]), /* @__PURE__ */ React.createElement("p", { className: "ip-h2" }, "まもなくキックオフ"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted" }, "COACHが問いを出すまで待機中…")) : config.intermission ? /* @__PURE__ */ React.createElement(Interstitial, { nextNo: ai + 1, total: qs.length }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "ip-join-no" }, "INQUIRY ", String(ai + 1).padStart(2, "0"), " / ", String(qs.length).padStart(2, "0")), /* @__PURE__ */ React.createElement("h2", { className: "ip-join-qtext" }, q.text), !answered ? /* @__PURE__ */ React.createElement(AnswerInput, { q, textDraft, setTextDraft, onSubmit: submit }) : /* @__PURE__ */ React.createElement("div", { className: "ip-thanks" }, /* @__PURE__ */ React.createElement("div", { className: "ip-thanks-badge" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 30 })), /* @__PURE__ */ React.createElement("span", { className: "ip-thanks-en" }, "GREAT SHOT!"), /* @__PURE__ */ React.createElement("span", { className: "ip-thanks-jp" }, "回答を送信しました"), q.type !== "text" && /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: () => setAnswers((p) => {
     const c = { ...p };
     delete c[`${sid}:${ai}`];
     return c;
-  }) }, "\u56DE\u7B54\u3092\u5909\u66F4\u3059\u308B")), config.revealResults && /* @__PURE__ */ React.createElement("div", { className: "ip-join-results" }, /* @__PURE__ */ React.createElement("div", { className: "ip-results-label" }, "TEAM RESULT \u2014 \u307F\u3093\u306A\u306E\u56DE\u7B54\uFF08", votes.length, "\uFF09"), /* @__PURE__ */ React.createElement(Results, { q, votes })))));
+  }) }, "回答を変更する")), config.revealResults && /* @__PURE__ */ React.createElement("div", { className: "ip-join-results" }, /* @__PURE__ */ React.createElement("div", { className: "ip-results-label" }, "TEAM RESULT — みんなの回答（", votes.length, "）"), /* @__PURE__ */ React.createElement(Results, { q, votes })))));
 }
 function AnswerInput({ q, textDraft, setTextDraft, onSubmit }) {
   if (q.type === "choice") {
-    return /* @__PURE__ */ React.createElement("div", { className: "ip-answer-choices" }, q.options.map((opt, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "ip-answer-btn", onClick: () => onSubmit(i) }, /* @__PURE__ */ React.createElement("span", { className: "ip-jersey" }, String.fromCharCode(65 + i)), /* @__PURE__ */ React.createElement("span", { className: "ip-answer-text" }, opt), /* @__PURE__ */ React.createElement("span", { className: "ip-answer-kick" }, "\u26BD"))));
+    return /* @__PURE__ */ React.createElement("div", { className: "ip-answer-choices" }, q.options.map((opt, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "ip-answer-btn", onClick: () => onSubmit(i) }, /* @__PURE__ */ React.createElement("span", { className: "ip-jersey" }, String.fromCharCode(65 + i)), /* @__PURE__ */ React.createElement("span", { className: "ip-answer-text" }, opt), /* @__PURE__ */ React.createElement("span", { className: "ip-answer-kick" }, "⚽"))));
   }
   if (q.type === "scale") {
     const nums = [];
@@ -370,11 +433,11 @@ function AnswerInput({ q, textDraft, setTextDraft, onSubmit }) {
     {
       className: "ip-input ip-textarea",
       rows: 3,
-      placeholder: "Write your idea \u2014 \u81EA\u7531\u306B\u5165\u529B",
+      placeholder: "Write your idea — 自由に入力",
       value: textDraft,
       onChange: (e) => setTextDraft(e.target.value)
     }
-  ), /* @__PURE__ */ React.createElement("button", { className: "ip-btn-primary ip-btn-block", disabled: !can, onClick: () => onSubmit(textDraft.trim()) }, "SHOOT! \u9001\u4FE1"));
+  ), /* @__PURE__ */ React.createElement("button", { className: "ip-btn-primary ip-btn-block", disabled: !can, onClick: () => onSubmit(textDraft.trim()) }, "SHOOT! 送信"));
 }
 function GoalOverlay({ name }) {
   const pieces = useMemo(() => {
@@ -398,10 +461,13 @@ function GoalOverlay({ name }) {
     height: p.size,
     borderRadius: p.round ? "50%" : "2px",
     transform: `rotate(${p.rot}deg)`
-  } }))), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-burst" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 62, className: "ip-goal-ball" }), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-text" }, "GOAL!!"), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-sub" }, name ? `GOAL by ${name}!` : "\u30CA\u30A4\u30B9\u56DE\u7B54\uFF01")));
+  } }))), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-burst" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 62, className: "ip-goal-ball" }), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-text" }, "GOAL!!"), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-sub" }, name ? `GOAL by ${name}!` : "ナイス回答！")));
 }
 function BouncingBall({ big }) {
   return /* @__PURE__ */ React.createElement("div", { className: `ip-bounce ${big ? "ip-bounce-big" : ""}` }, /* @__PURE__ */ React.createElement(SoccerBall, { size: big ? 60 : 44, className: "ip-bounce-ball" }), /* @__PURE__ */ React.createElement("span", { className: "ip-bounce-shadow" }));
+}
+function Interstitial({ nextNo, total }) {
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-inter ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, null), /* @__PURE__ */ React.createElement("div", { className: "ip-inter-inner" }, /* @__PURE__ */ React.createElement("div", { className: "ip-inter-eyebrow" }, "NEXT INQUIRY"), /* @__PURE__ */ React.createElement("div", { className: "ip-inter-no" }, "No.", /* @__PURE__ */ React.createElement("span", { className: "ip-inter-no-num" }, String(nextNo).padStart(2, "0")), /* @__PURE__ */ React.createElement("span", { className: "ip-inter-no-total" }, "/ ", String(total).padStart(2, "0"))), /* @__PURE__ */ React.createElement("div", { className: "ip-inter-pitch" }, /* @__PURE__ */ React.createElement("div", { className: "ip-inter-roller" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 46, spin: true })), /* @__PURE__ */ React.createElement("div", { className: "ip-inter-grass-line" })), /* @__PURE__ */ React.createElement("p", { className: "ip-inter-msg" }, "次の問い、まもなく！"), /* @__PURE__ */ React.createElement("p", { className: "ip-inter-sub" }, "Get ready for the next question…"), /* @__PURE__ */ React.createElement("div", { className: "ip-inter-dots" }, /* @__PURE__ */ React.createElement("i", null), /* @__PURE__ */ React.createElement("i", null), /* @__PURE__ */ React.createElement("i", null))));
 }
 function Results({ q, votes, big }) {
   if (q.type === "text") return /* @__PURE__ */ React.createElement(TextResults, { votes, big });
@@ -413,7 +479,7 @@ function Results({ q, votes, big }) {
   const maxC = Math.max(1, ...counts);
   let avg = null;
   if (q.type === "scale" && total > 0) avg = (votes.reduce((s, v) => s + Number(v.a), 0) / total).toFixed(2);
-  return /* @__PURE__ */ React.createElement("div", { className: `ip-results ${big ? "ip-results-big" : ""}` }, q.type === "scale" && /* @__PURE__ */ React.createElement("div", { className: "ip-avg" }, "AVG ", /* @__PURE__ */ React.createElement("b", { className: "ip-avg-num" }, avg != null ? avg : "\u2014"), q.minLabel && /* @__PURE__ */ React.createElement("span", { className: "ip-avg-ends" }, q.minLabel, " \u2026 ", q.maxLabel)), labels.map((l, i) => {
+  return /* @__PURE__ */ React.createElement("div", { className: `ip-results ${big ? "ip-results-big" : ""}` }, q.type === "scale" && /* @__PURE__ */ React.createElement("div", { className: "ip-avg" }, "AVG ", /* @__PURE__ */ React.createElement("b", { className: "ip-avg-num" }, avg != null ? avg : "—"), q.minLabel && /* @__PURE__ */ React.createElement("span", { className: "ip-avg-ends" }, q.minLabel, " … ", q.maxLabel)), labels.map((l, i) => {
     const c = counts[i];
     const pct = total ? Math.round(c / total * 100) : 0;
     const names = votes.filter((v) => v.a === l.key).map((v) => v.n).filter(Boolean);
@@ -421,11 +487,11 @@ function Results({ q, votes, big }) {
   }));
 }
 function TextResults({ votes, big }) {
-  if (!votes.length) return /* @__PURE__ */ React.createElement("div", { className: "ip-muted ip-text-empty" }, "\u307E\u3060\u56DE\u7B54\u304C\u3042\u308A\u307E\u305B\u3093");
-  return /* @__PURE__ */ React.createElement("div", { className: `ip-text-results ${big ? "ip-text-big" : ""}` }, [...votes].reverse().map((v, i) => /* @__PURE__ */ React.createElement("div", { className: "ip-text-card", key: i }, /* @__PURE__ */ React.createElement("span", { className: "ip-text-name" }, v.n || "\u540D\u7121\u3057"), /* @__PURE__ */ React.createElement("span", { className: "ip-text-body" }, String(v.a)))));
+  if (!votes.length) return /* @__PURE__ */ React.createElement("div", { className: "ip-muted ip-text-empty" }, "まだ回答がありません");
+  return /* @__PURE__ */ React.createElement("div", { className: `ip-text-results ${big ? "ip-text-big" : ""}` }, [...votes].reverse().map((v, i) => /* @__PURE__ */ React.createElement("div", { className: "ip-text-card", key: i }, /* @__PURE__ */ React.createElement("span", { className: "ip-text-name" }, v.n || "名無し"), /* @__PURE__ */ React.createElement("span", { className: "ip-text-body" }, String(v.a)))));
 }
 function ConfigNotice() {
-  return /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement("div", { className: "ip-hero", style: { background: "#fff" } }, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "SETUP REQUIRED"), /* @__PURE__ */ React.createElement("h2", { className: "ip-h2" }, "Firebase\u306E\u8A2D\u5B9A\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044"), /* @__PURE__ */ React.createElement("p", { className: "ip-lead" }, "index.html \u5185\u306E ", /* @__PURE__ */ React.createElement("code", null, "__FIREBASE_CONFIG__"), " \u306B\u3001\u3054\u81EA\u8EAB\u306EFirebase\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306E\u8A2D\u5B9A \uFF08\u7279\u306B ", /* @__PURE__ */ React.createElement("b", null, "databaseURL"), "\uFF09\u3092\u8CBC\u308A\u4ED8\u3051\u308B\u3068\u8D77\u52D5\u3057\u307E\u3059\u3002\u624B\u9806\u306FREADME\u3092\u53C2\u7167\u3057\u3066\u304F\u3060\u3055\u3044\u3002")));
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement("div", { className: "ip-hero", style: { background: "#fff" } }, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "SETUP REQUIRED"), /* @__PURE__ */ React.createElement("h2", { className: "ip-h2" }, "Firebaseの設定を入力してください"), /* @__PURE__ */ React.createElement("p", { className: "ip-lead" }, "index.html 内の ", /* @__PURE__ */ React.createElement("code", null, "__FIREBASE_CONFIG__"), " に、ご自身のFirebaseプロジェクトの設定 （特に ", /* @__PURE__ */ React.createElement("b", null, "databaseURL"), "）を貼り付けると起動します。手順はREADMEを参照してください。")));
 }
 function StyleTag() {
   return /* @__PURE__ */ React.createElement("style", null, `
@@ -687,6 +753,26 @@ function StyleTag() {
 .ip-confetti{position:absolute;inset:0;overflow:hidden;}
 .ip-confetto{position:absolute;top:-20px;animation-name:ip-fall;animation-timing-function:cubic-bezier(.3,.1,.6,1);animation-fill-mode:both;}
 @keyframes ip-fall{0%{transform:translateY(-20px) rotate(0);opacity:1;}100%{transform:translateY(105vh) rotate(680deg);opacity:.9;}}
+
+/* ===== INTERSTITIAL（問いと問いの間） ===== */
+.ip-inter{position:relative;border-radius:20px;overflow:hidden;min-height:60vh;display:flex;align-items:center;justify-content:center;box-shadow:0 26px 60px -30px rgba(0,0,0,.6);animation:ip-inter-in .4s ease;}
+@keyframes ip-inter-in{from{opacity:0;transform:scale(.98);}to{opacity:1;}}
+.ip-inter-inner{position:relative;z-index:2;text-align:center;color:#fff;padding:34px 22px;width:100%;}
+.ip-inter-eyebrow{font-family:var(--fd);letter-spacing:.22em;font-size:14px;color:var(--gold);}
+.ip-inter-no{font-family:var(--fd);font-size:20px;color:rgba(255,255,255,.85);margin-top:2px;}
+.ip-inter-no-num{font-size:clamp(46px,16vw,64px);color:#fff;margin:0 6px;}
+.ip-inter-no-total{font-size:18px;color:rgba(255,255,255,.6);}
+.ip-inter-pitch{position:relative;height:72px;margin:14px 0 6px;overflow:hidden;}
+.ip-inter-grass-line{position:absolute;left:6%;right:6%;bottom:14px;height:3px;background:rgba(255,255,255,.45);border-radius:2px;}
+.ip-inter-roller{position:absolute;bottom:8px;left:-14%;animation:ip-roll 2.4s linear infinite;}
+@keyframes ip-roll{0%{left:-14%;}100%{left:106%;}}
+.ip-inter-msg{font-family:var(--fd);font-size:clamp(24px,7vw,34px);margin:8px 0 2px;letter-spacing:.02em;}
+.ip-inter-sub{color:rgba(255,255,255,.8);font-size:13px;margin:0;}
+.ip-inter-dots{display:flex;gap:8px;justify-content:center;margin-top:16px;}
+.ip-inter-dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.9);animation:ip-dot 1.2s infinite;}
+.ip-inter-dots i:nth-child(2){animation-delay:.2s;}
+.ip-inter-dots i:nth-child(3){animation-delay:.4s;}
+@keyframes ip-dot{0%,100%{opacity:.3;transform:translateY(0);}50%{opacity:1;transform:translateY(-5px);}}
 
 @media (prefers-reduced-motion: reduce){
   .ip-root *{animation:none!important;transition:none!important;}
