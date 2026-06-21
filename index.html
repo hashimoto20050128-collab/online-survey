@@ -4,13 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>INQUIRY PITCH — ゼミ用ライブアンケート</title>
+<link rel="icon" href="data:," />
 <style>html,body{margin:0;padding:0;background:#E9EAF0;}#root{min-height:100vh;}</style>
 
-<!-- React 18 (UMD) -->
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<!-- Babel standalone（JSXをブラウザで変換） -->
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<!-- React 18 (UMD, バージョン固定) -->
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <!-- Firebase (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -18,436 +17,281 @@
 <body>
 <div id="root"></div>
 
-<!-- ▼▼▼ ここをご自身のFirebase設定に置き換えてください ▼▼▼ -->
+<!-- ▼ Firebase設定（このプロジェクト用に設定済み） ▼ -->
 <script>
   window.__FIREBASE_CONFIG__ = {
-  apiKey: "AIzaSyDZ2HDkOssarrBAFnMi4Cc1sU77RbDrp-c",
-  authDomain: "survey-2e4fc.firebaseapp.com",
-  databaseURL: "https://survey-2e4fc-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "survey-2e4fc",
-  storageBucket: "survey-2e4fc.firebasestorage.app",
-  messagingSenderId: "472978641455",
-  appId: "1:472978641455:web:6e27ecf9f5b816742facda"
-};
+    apiKey: "AIzaSyDZ2HDkOssarrBAFnMi4Cc1sU77RbDrp-c",
+    authDomain: "survey-2e4fc.firebaseapp.com",
+    databaseURL: "https://survey-2e4fc-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "survey-2e4fc",
+    storageBucket: "survey-2e4fc.firebasestorage.app",
+    messagingSenderId: "472978641455",
+    appId: "1:472978641455:web:6e27ecf9f5b816742facda"
+  };
 </script>
-<!-- ▲▲▲ ここまで ▲▲▲ -->
 
-<script type="text/babel" data-presets="react">
+<!-- アプリ本体：JSXは事前コンパイル済みのため Babel 不要 -->
+<script>
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
-
-
-/* ================================================================== *
- *  INQUIRY PITCH — ゼミ用ライブアンケート（探究 × 英語 × サッカー）
- *  - COACH(発表者): 問いを準備し、KICK OFF → NEXT で1問ずつ提示
- *  - PLAYER(参加者): 端末で回答 → GOAL演出 → 結果がリアルタイム集計
- *  - 同期: Firebase Realtime Database。config と votes をリアルタイム購読。
- * ================================================================== */
-
-/* ---------- Firebase (Realtime Database) ---------- */
 const firebaseConfig = window.__FIREBASE_CONFIG__ || {};
 const CONFIG_OK = !!(firebaseConfig.databaseURL && !/REPLACE_ME/.test(firebaseConfig.databaseURL));
 let db = null;
 if (CONFIG_OK) {
-  try { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
-  catch (e) { console.error("Firebase init failed", e); }
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+  } catch (e) {
+    console.error("Firebase init failed", e);
+  }
 }
-
 const uid = () => Math.random().toString(36).slice(2, 10);
-
 function emptyConfig() {
   return { sessionId: uid(), title: "", questions: [], activeIndex: -1, revealResults: true, started: false };
 }
-
-// undefined を含むとRTDBが拒否するため JSON で正規化
 const clean = (o) => JSON.parse(JSON.stringify(o));
-
 function listenConfig(cb) {
-  if (!db) { cb(null); return () => {}; }
+  if (!db) {
+    cb(null);
+    return () => {
+    };
+  }
   const ref = db.ref("config");
   const h = ref.on("value", (s) => cb(s.val()));
   return () => ref.off("value", h);
 }
-function writeConfig(next) { if (db) db.ref("config").set(clean(next)); }
-
+function writeConfig(next) {
+  if (db) db.ref("config").set(clean(next));
+}
 function normalizeVotes(obj) {
   const o = obj || {};
-  return Object.keys(o).map((k) => o[k])
-    .map((x) => (x && typeof x === "object" && "a" in x) ? { a: x.a, n: x.n || "" } : { a: x, n: "" })
-    .filter((x) => x.a !== null && x.a !== undefined);
+  return Object.keys(o).map((k) => o[k]).map((x) => x && typeof x === "object" && "a" in x ? { a: x.a, n: x.n || "" } : { a: x, n: "" }).filter((x) => x.a !== null && x.a !== void 0);
 }
 function listenVotes(sid, qi, cb) {
-  if (!db) { cb([]); return () => {}; }
+  if (!db) {
+    cb([]);
+    return () => {
+    };
+  }
   const ref = db.ref("votes/" + sid + "/" + qi);
   const h = ref.on("value", (s) => cb(normalizeVotes(s.val())));
   return () => ref.off("value", h);
 }
-function writeVote(sid, qi, pid, val) { if (db) db.ref("votes/" + sid + "/" + qi + "/" + pid).set(clean(val)); }
-
-/* ================================================================== */
+function writeVote(sid, qi, pid, val) {
+  if (db) db.ref("votes/" + sid + "/" + qi + "/" + pid).set(clean(val));
+}
 function App() {
   const [view, setView] = useState("role");
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const pidRef = useRef(uid());
-
   useEffect(() => {
-    const off = listenConfig((c) => { setConfig(c); setLoading(false); });
+    const off = listenConfig((c) => {
+      setConfig(c);
+      setLoading(false);
+    });
     return off;
   }, []);
-
   const pushConfig = useCallback((next) => {
     setConfig(next);
     writeConfig(next);
   }, []);
-
   if (!CONFIG_OK) {
-    return (<div className="ip-root"><StyleTag /><ConfigNotice /></div>);
+    return /* @__PURE__ */ React.createElement("div", { className: "ip-root" }, /* @__PURE__ */ React.createElement(StyleTag, null), /* @__PURE__ */ React.createElement(ConfigNotice, null));
   }
-
-  return (
-    <div className="ip-root">
-      <StyleTag />
-      {loading ? (
-        <div className="ip-center"><SoccerBall spin /> <span className="ip-loading">LOADING…</span></div>
-      ) : view === "role" ? (
-        <RoleSelect
-          hasPoll={!!(config && config.questions && config.questions.length)}
-          title={config && config.title}
-          onCoach={() => setView("setup")}
-          onPlayer={() => setView("join")}
-        />
-      ) : view === "setup" ? (
-        <Setup
-          config={config || emptyConfig()}
-          onCancel={() => setView("role")}
-          onSave={async (c) => { await pushConfig(c); }}
-          onStart={async (c) => {
-            const next = { ...c, sessionId: uid(), started: true, activeIndex: -1 };
-            await pushConfig(next); setView("present");
-          }}
-        />
-      ) : view === "present" ? (
-        <Presenter config={config} pushConfig={pushConfig}
-          onExit={() => setView("role")} onEdit={() => setView("setup")} />
-      ) : (
-        <Participant config={config} pid={pidRef.current} onLeave={() => setView("role")} />
-      )}
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-root" }, /* @__PURE__ */ React.createElement(StyleTag, null), loading ? /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement(SoccerBall, { spin: true }), " ", /* @__PURE__ */ React.createElement("span", { className: "ip-loading" }, "LOADING\u2026")) : view === "role" ? /* @__PURE__ */ React.createElement(
+    RoleSelect,
+    {
+      hasPoll: !!(config && config.questions && config.questions.length),
+      title: config && config.title,
+      onCoach: () => setView("setup"),
+      onPlayer: () => setView("join")
+    }
+  ) : view === "setup" ? /* @__PURE__ */ React.createElement(
+    Setup,
+    {
+      config: config || emptyConfig(),
+      onCancel: () => setView("role"),
+      onSave: async (c) => {
+        await pushConfig(c);
+      },
+      onStart: async (c) => {
+        const next = { ...c, sessionId: uid(), started: true, activeIndex: -1 };
+        await pushConfig(next);
+        setView("present");
+      }
+    }
+  ) : view === "present" ? /* @__PURE__ */ React.createElement(
+    Presenter,
+    {
+      config,
+      pushConfig,
+      onExit: () => setView("role"),
+      onEdit: () => setView("setup")
+    }
+  ) : /* @__PURE__ */ React.createElement(Participant, { config, pid: pidRef.current, onLeave: () => setView("role") }));
 }
-
-/* ===================== SOCCER BALL (svg) ===================== */
 function SoccerBall({ spin, className = "", size = 64 }) {
-  return (
-    <svg className={`ip-ball ${spin ? "ip-ball-spin" : ""} ${className}`}
-      width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
-      <circle cx="50" cy="50" r="47" fill="#fff" stroke="#0B1411" strokeWidth="2.5" />
-      <polygon points="50,34 64,44 58.5,61 41.5,61 36,44" fill="#0B1411" />
-      <g stroke="#0B1411" strokeWidth="2.4" fill="none">
-        <path d="M50 34 L50 9" /><path d="M64 44 L86 32" /><path d="M58.5 61 L72 84" />
-        <path d="M41.5 61 L28 84" /><path d="M36 44 L14 32" />
-      </g>
-    </svg>
+  return /* @__PURE__ */ React.createElement(
+    "svg",
+    {
+      className: `ip-ball ${spin ? "ip-ball-spin" : ""} ${className}`,
+      width: size,
+      height: size,
+      viewBox: "0 0 100 100",
+      "aria-hidden": "true"
+    },
+    /* @__PURE__ */ React.createElement("circle", { cx: "50", cy: "50", r: "47", fill: "#fff", stroke: "#0B1411", strokeWidth: "2.5" }),
+    /* @__PURE__ */ React.createElement("polygon", { points: "50,34 64,44 58.5,61 41.5,61 36,44", fill: "#0B1411" }),
+    /* @__PURE__ */ React.createElement("g", { stroke: "#0B1411", strokeWidth: "2.4", fill: "none" }, /* @__PURE__ */ React.createElement("path", { d: "M50 34 L50 9" }), /* @__PURE__ */ React.createElement("path", { d: "M64 44 L86 32" }), /* @__PURE__ */ React.createElement("path", { d: "M58.5 61 L72 84" }), /* @__PURE__ */ React.createElement("path", { d: "M41.5 61 L28 84" }), /* @__PURE__ */ React.createElement("path", { d: "M36 44 L14 32" }))
   );
 }
-
-/* ===================== ROLE SELECT ===================== */
 function RoleSelect({ hasPoll, title, onCoach, onPlayer }) {
-  return (
-    <div className="ip-center ip-pitch ip-pitch-full">
-      <PitchLines />
-      <div className="ip-hero">
-        <div className="ip-eyebrow">FIFA-STYLE LIVE POLL · 探究 × 英語</div>
-        <h1 className="ip-h1"><span className="ip-h1-en">INQUIRY</span><span className="ip-h1-jp">問いを、キックオフ。</span></h1>
-        <p className="ip-lead">
-          スライドに合わせて「問い」を1問ずつピッチに送り出し、メンバーの回答をリアルタイムで集計。
-          答えるたびに <b className="ip-goal-word">GOAL!</b> が決まります。
-        </p>
-        {hasPoll && title ? <div className="ip-saved">SAVED&nbsp; <b>{title || "Untitled"}</b></div> : null}
-        <div className="ip-role-grid">
-          <button className="ip-team-card ip-team-home" onClick={onCoach}>
-            <span className="ip-team-no">10</span>
-            <span className="ip-team-role">COACH</span>
-            <span className="ip-team-jp">発表者 — 問いを準備して進行</span>
-          </button>
-          <button className="ip-team-card ip-team-away" onClick={onPlayer}>
-            <span className="ip-team-no">07</span>
-            <span className="ip-team-role">PLAYER</span>
-            <span className="ip-team-jp">参加者 — この端末で回答</span>
-          </button>
-        </div>
-        <p className="ip-fineprint">
-          PLAYER はこのページのURLを開くだけで参加できます。回答は匿名で、開いた全員と共有されます。
-        </p>
-      </div>
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-center ip-pitch ip-pitch-full" }, /* @__PURE__ */ React.createElement(PitchLines, null), /* @__PURE__ */ React.createElement("div", { className: "ip-hero" }, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "FIFA-STYLE LIVE POLL \xB7 \u63A2\u7A76 \xD7 \u82F1\u8A9E"), /* @__PURE__ */ React.createElement("h1", { className: "ip-h1" }, /* @__PURE__ */ React.createElement("span", { className: "ip-h1-en" }, "INQUIRY"), /* @__PURE__ */ React.createElement("span", { className: "ip-h1-jp" }, "\u554F\u3044\u3092\u3001\u30AD\u30C3\u30AF\u30AA\u30D5\u3002")), /* @__PURE__ */ React.createElement("p", { className: "ip-lead" }, "\u30B9\u30E9\u30A4\u30C9\u306B\u5408\u308F\u305B\u3066\u300C\u554F\u3044\u300D\u30921\u554F\u305A\u3064\u30D4\u30C3\u30C1\u306B\u9001\u308A\u51FA\u3057\u3001\u30E1\u30F3\u30D0\u30FC\u306E\u56DE\u7B54\u3092\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u3067\u96C6\u8A08\u3002 \u7B54\u3048\u308B\u305F\u3073\u306B ", /* @__PURE__ */ React.createElement("b", { className: "ip-goal-word" }, "GOAL!"), " \u304C\u6C7A\u307E\u308A\u307E\u3059\u3002"), hasPoll && title ? /* @__PURE__ */ React.createElement("div", { className: "ip-saved" }, "SAVED\xA0 ", /* @__PURE__ */ React.createElement("b", null, title || "Untitled")) : null, /* @__PURE__ */ React.createElement("div", { className: "ip-role-grid" }, /* @__PURE__ */ React.createElement("button", { className: "ip-team-card ip-team-home", onClick: onCoach }, /* @__PURE__ */ React.createElement("span", { className: "ip-team-no" }, "10"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-role" }, "COACH"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-jp" }, "\u767A\u8868\u8005 \u2014 \u554F\u3044\u3092\u6E96\u5099\u3057\u3066\u9032\u884C")), /* @__PURE__ */ React.createElement("button", { className: "ip-team-card ip-team-away", onClick: onPlayer }, /* @__PURE__ */ React.createElement("span", { className: "ip-team-no" }, "07"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-role" }, "PLAYER"), /* @__PURE__ */ React.createElement("span", { className: "ip-team-jp" }, "\u53C2\u52A0\u8005 \u2014 \u3053\u306E\u7AEF\u672B\u3067\u56DE\u7B54"))), /* @__PURE__ */ React.createElement("p", { className: "ip-fineprint" }, "PLAYER \u306F\u3053\u306E\u30DA\u30FC\u30B8\u306EURL\u3092\u958B\u304F\u3060\u3051\u3067\u53C2\u52A0\u3067\u304D\u307E\u3059\u3002\u56DE\u7B54\u306F\u533F\u540D\u3067\u3001\u958B\u3044\u305F\u5168\u54E1\u3068\u5171\u6709\u3055\u308C\u307E\u3059\u3002")));
 }
-
 function PitchLines() {
-  return (
-    <div className="ip-lines" aria-hidden="true">
-      <div className="ip-line-half" />
-      <div className="ip-circle-center" />
-      <div className="ip-spot" />
-      <div className="ip-box ip-box-l" /><div className="ip-box ip-box-r" />
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-lines", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("div", { className: "ip-line-half" }), /* @__PURE__ */ React.createElement("div", { className: "ip-circle-center" }), /* @__PURE__ */ React.createElement("div", { className: "ip-spot" }), /* @__PURE__ */ React.createElement("div", { className: "ip-box ip-box-l" }), /* @__PURE__ */ React.createElement("div", { className: "ip-box ip-box-r" }));
 }
-
-/* ===================== SETUP (COACH) ===================== */
 const QTYPES = [
-  { id: "choice", label: "選択式", en: "Choice" },
-  { id: "scale", label: "段階評価", en: "Scale" },
-  { id: "text", label: "自由記述", en: "Open" },
+  { id: "choice", label: "\u9078\u629E\u5F0F", en: "Choice" },
+  { id: "scale", label: "\u6BB5\u968E\u8A55\u4FA1", en: "Scale" },
+  { id: "text", label: "\u81EA\u7531\u8A18\u8FF0", en: "Open" }
 ];
-
 function Setup({ config, onCancel, onSave, onStart }) {
   const [title, setTitle] = useState(config.title || "");
   const [questions, setQuestions] = useState(config.questions || []);
   const [editing, setEditing] = useState(null);
   const current = { ...config, title, questions };
-
-  const startDraft = (type) =>
-    setEditing(
-      type === "scale"
-        ? { id: uid(), type, text: "", scaleMin: 1, scaleMax: 5, minLabel: "Strongly disagree", maxLabel: "Strongly agree" }
-        : type === "choice"
-        ? { id: uid(), type, text: "", options: ["", ""] }
-        : { id: uid(), type, text: "" }
-    );
-
+  const startDraft = (type) => setEditing(
+    type === "scale" ? { id: uid(), type, text: "", scaleMin: 1, scaleMax: 5, minLabel: "Strongly disagree", maxLabel: "Strongly agree" } : type === "choice" ? { id: uid(), type, text: "", options: ["", ""] } : { id: uid(), type, text: "" }
+  );
   const commitDraft = (q) => {
     setQuestions((prev) => {
       const i = prev.findIndex((x) => x.id === q.id);
-      if (i >= 0) { const c = [...prev]; c[i] = q; return c; }
+      if (i >= 0) {
+        const c = [...prev];
+        c[i] = q;
+        return c;
+      }
       return [...prev, q];
     });
     setEditing(null);
   };
-  const move = (i, dir) =>
-    setQuestions((prev) => {
-      const j = i + dir; if (j < 0 || j >= prev.length) return prev;
-      const c = [...prev]; [c[i], c[j]] = [c[j], c[i]]; return c;
-    });
-
-  return (
-    <div className="ip-page">
-      <header className="ip-topbar">
-        <button className="ip-link" onClick={onCancel}>← BACK</button>
-        <div className="ip-topbar-title">MATCH SETUP <span className="ip-tt-jp">問いの準備</span></div>
-        <button className="ip-link" onClick={() => onSave(current)} disabled={!questions.length}>SAVE</button>
-      </header>
-
-      <div className="ip-setup">
-        <label className="ip-field">
-          <span className="ip-field-label">TITLE / タイトル（任意）</span>
-          <input className="ip-input ip-input-lg" value={title}
-            placeholder="例）Inquiry-based English Learning"
-            onChange={(e) => setTitle(e.target.value)} />
-        </label>
-
-        <div className="ip-q-list">
-          {questions.length === 0 && !editing ? (
-            <div className="ip-empty"><SoccerBall size={34} /><span>まだ問いがありません。下のボタンで最初の問いをキックオフ。</span></div>
-          ) : null}
-          {questions.map((q, i) => (
-            <div className="ip-q-item" key={q.id}>
-              <div className="ip-q-no">{String(i + 1).padStart(2, "0")}</div>
-              <div className="ip-q-body">
-                <div className="ip-q-text">{q.text || <em className="ip-muted">（問いが未入力）</em>}</div>
-                <div className="ip-q-meta">{typeLabel(q)}</div>
-              </div>
-              <div className="ip-q-actions">
-                <button className="ip-icon" title="上へ" onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
-                <button className="ip-icon" title="下へ" onClick={() => move(i, 1)} disabled={i === questions.length - 1}>↓</button>
-                <button className="ip-icon" title="編集" onClick={() => setEditing(q)}>✎</button>
-                <button className="ip-icon ip-icon-red" title="削除"
-                  onClick={() => setQuestions((p) => p.filter((x) => x.id !== q.id))}>✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {editing ? (
-          <QuestionEditor draft={editing} onCancel={() => setEditing(null)} onCommit={commitDraft} />
-        ) : (
-          <div className="ip-add-row">
-            <span className="ip-add-label">ADD INQUIRY</span>
-            {QTYPES.map((t) => (
-              <button key={t.id} className="ip-chip" onClick={() => startDraft(t.id)}>
-                + {t.en}<span className="ip-chip-jp">{t.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="ip-start-bar">
-          <button className="ip-kickoff" disabled={!questions.length || !!editing} onClick={() => onStart(current)}>
-            <SoccerBall size={26} /> KICK OFF — 発表を開始
-          </button>
-          <p className="ip-fineprint">開始すると新しい試合（セッション）が始まり、回答がリセットされます。</p>
-        </div>
-      </div>
-    </div>
-  );
+  const move = (i, dir) => setQuestions((prev) => {
+    const j = i + dir;
+    if (j < 0 || j >= prev.length) return prev;
+    const c = [...prev];
+    [c[i], c[j]] = [c[j], c[i]];
+    return c;
+  });
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-page" }, /* @__PURE__ */ React.createElement("header", { className: "ip-topbar" }, /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: onCancel }, "\u2190 BACK"), /* @__PURE__ */ React.createElement("div", { className: "ip-topbar-title" }, "MATCH SETUP ", /* @__PURE__ */ React.createElement("span", { className: "ip-tt-jp" }, "\u554F\u3044\u306E\u6E96\u5099")), /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: () => onSave(current), disabled: !questions.length }, "SAVE")), /* @__PURE__ */ React.createElement("div", { className: "ip-setup" }, /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "TITLE / \u30BF\u30A4\u30C8\u30EB\uFF08\u4EFB\u610F\uFF09"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      className: "ip-input ip-input-lg",
+      value: title,
+      placeholder: "\u4F8B\uFF09Inquiry-based English Learning",
+      onChange: (e) => setTitle(e.target.value)
+    }
+  )), /* @__PURE__ */ React.createElement("div", { className: "ip-q-list" }, questions.length === 0 && !editing ? /* @__PURE__ */ React.createElement("div", { className: "ip-empty" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 34 }), /* @__PURE__ */ React.createElement("span", null, "\u307E\u3060\u554F\u3044\u304C\u3042\u308A\u307E\u305B\u3093\u3002\u4E0B\u306E\u30DC\u30BF\u30F3\u3067\u6700\u521D\u306E\u554F\u3044\u3092\u30AD\u30C3\u30AF\u30AA\u30D5\u3002")) : null, questions.map((q, i) => /* @__PURE__ */ React.createElement("div", { className: "ip-q-item", key: q.id }, /* @__PURE__ */ React.createElement("div", { className: "ip-q-no" }, String(i + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("div", { className: "ip-q-body" }, /* @__PURE__ */ React.createElement("div", { className: "ip-q-text" }, q.text || /* @__PURE__ */ React.createElement("em", { className: "ip-muted" }, "\uFF08\u554F\u3044\u304C\u672A\u5165\u529B\uFF09")), /* @__PURE__ */ React.createElement("div", { className: "ip-q-meta" }, typeLabel(q))), /* @__PURE__ */ React.createElement("div", { className: "ip-q-actions" }, /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "\u4E0A\u3078", onClick: () => move(i, -1), disabled: i === 0 }, "\u2191"), /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "\u4E0B\u3078", onClick: () => move(i, 1), disabled: i === questions.length - 1 }, "\u2193"), /* @__PURE__ */ React.createElement("button", { className: "ip-icon", title: "\u7DE8\u96C6", onClick: () => setEditing(q) }, "\u270E"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "ip-icon ip-icon-red",
+      title: "\u524A\u9664",
+      onClick: () => setQuestions((p) => p.filter((x) => x.id !== q.id))
+    },
+    "\u2715"
+  ))))), editing ? /* @__PURE__ */ React.createElement(QuestionEditor, { draft: editing, onCancel: () => setEditing(null), onCommit: commitDraft }) : /* @__PURE__ */ React.createElement("div", { className: "ip-add-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-add-label" }, "ADD INQUIRY"), QTYPES.map((t) => /* @__PURE__ */ React.createElement("button", { key: t.id, className: "ip-chip", onClick: () => startDraft(t.id) }, "+ ", t.en, /* @__PURE__ */ React.createElement("span", { className: "ip-chip-jp" }, t.label)))), /* @__PURE__ */ React.createElement("div", { className: "ip-start-bar" }, /* @__PURE__ */ React.createElement("button", { className: "ip-kickoff", disabled: !questions.length || !!editing, onClick: () => onStart(current) }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 26 }), " KICK OFF \u2014 \u767A\u8868\u3092\u958B\u59CB"), /* @__PURE__ */ React.createElement("p", { className: "ip-fineprint" }, "\u958B\u59CB\u3059\u308B\u3068\u65B0\u3057\u3044\u8A66\u5408\uFF08\u30BB\u30C3\u30B7\u30E7\u30F3\uFF09\u304C\u59CB\u307E\u308A\u3001\u56DE\u7B54\u304C\u30EA\u30BB\u30C3\u30C8\u3055\u308C\u307E\u3059\u3002"))));
 }
-
 function typeLabel(q) {
-  if (q.type === "choice") return `Choice · ${(q.options || []).filter(Boolean).length}択`;
-  if (q.type === "scale") return `Scale · ${q.scaleMin}–${q.scaleMax}`;
-  return "Open response · 自由記述";
+  if (q.type === "choice") return `Choice \xB7 ${(q.options || []).filter(Boolean).length}\u629E`;
+  if (q.type === "scale") return `Scale \xB7 ${q.scaleMin}\u2013${q.scaleMax}`;
+  return "Open response \xB7 \u81EA\u7531\u8A18\u8FF0";
 }
-
 function QuestionEditor({ draft, onCancel, onCommit }) {
+  var _a, _b;
   const [q, setQ] = useState(draft);
   const set = (patch) => setQ((p) => ({ ...p, ...patch }));
-  const valid = q.text.trim() &&
-    (q.type !== "choice" || (q.options || []).filter((o) => o.trim()).length >= 2);
-
-  return (
-    <div className="ip-editor">
-      <div className="ip-editor-head">
-        <span className="ip-editor-type">{QTYPES.find((t) => t.id === q.type)?.en} · {QTYPES.find((t) => t.id === q.type)?.label}</span>
-      </div>
-      <textarea className="ip-input ip-textarea" placeholder="問いを入力（英語でもOK）"
-        value={q.text} onChange={(e) => set({ text: e.target.value })} rows={2} autoFocus />
-
-      {q.type === "choice" && (
-        <div className="ip-options">
-          {(q.options || []).map((opt, i) => (
-            <div className="ip-opt-row" key={i}>
-              <span className="ip-jersey">{String.fromCharCode(65 + i)}</span>
-              <input className="ip-input" placeholder={`Option ${i + 1}`} value={opt}
-                onChange={(e) => { const o = [...q.options]; o[i] = e.target.value; set({ options: o }); }} />
-              {q.options.length > 2 && (
-                <button className="ip-icon ip-icon-red"
-                  onClick={() => set({ options: q.options.filter((_, j) => j !== i) })}>✕</button>
-              )}
-            </div>
-          ))}
-          {q.options.length < 8 && (
-            <button className="ip-chip ip-chip-ghost" onClick={() => set({ options: [...q.options, ""] })}>+ 選択肢を追加</button>
-          )}
-        </div>
-      )}
-
-      {q.type === "scale" && (
-        <div className="ip-scale-cfg">
-          <div className="ip-scale-range">
-            <label>MIN<input className="ip-input ip-input-num" type="number" value={q.scaleMin}
-              onChange={(e) => set({ scaleMin: clampInt(e.target.value, 0, 9, 1) })} /></label>
-            <label>MAX<input className="ip-input ip-input-num" type="number" value={q.scaleMax}
-              onChange={(e) => set({ scaleMax: clampInt(e.target.value, 2, 10, 5) })} /></label>
-          </div>
-          <label className="ip-field"><span className="ip-field-label">左端ラベル</span>
-            <input className="ip-input" value={q.minLabel || ""} onChange={(e) => set({ minLabel: e.target.value })} /></label>
-          <label className="ip-field"><span className="ip-field-label">右端ラベル</span>
-            <input className="ip-input" value={q.maxLabel || ""} onChange={(e) => set({ maxLabel: e.target.value })} /></label>
-        </div>
-      )}
-
-      <div className="ip-editor-foot">
-        <button className="ip-link" onClick={onCancel}>CANCEL</button>
-        <button className="ip-btn-primary" disabled={!valid}
-          onClick={() => onCommit({ ...q, options: q.options ? q.options.filter((o) => o.trim()) : undefined })}>
-          この問いを保存
-        </button>
-      </div>
-    </div>
-  );
+  const valid = q.text.trim() && (q.type !== "choice" || (q.options || []).filter((o) => o.trim()).length >= 2);
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-editor" }, /* @__PURE__ */ React.createElement("div", { className: "ip-editor-head" }, /* @__PURE__ */ React.createElement("span", { className: "ip-editor-type" }, (_a = QTYPES.find((t) => t.id === q.type)) == null ? void 0 : _a.en, " \xB7 ", (_b = QTYPES.find((t) => t.id === q.type)) == null ? void 0 : _b.label)), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      className: "ip-input ip-textarea",
+      placeholder: "\u554F\u3044\u3092\u5165\u529B\uFF08\u82F1\u8A9E\u3067\u3082OK\uFF09",
+      value: q.text,
+      onChange: (e) => set({ text: e.target.value }),
+      rows: 2,
+      autoFocus: true
+    }
+  ), q.type === "choice" && /* @__PURE__ */ React.createElement("div", { className: "ip-options" }, (q.options || []).map((opt, i) => /* @__PURE__ */ React.createElement("div", { className: "ip-opt-row", key: i }, /* @__PURE__ */ React.createElement("span", { className: "ip-jersey" }, String.fromCharCode(65 + i)), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      className: "ip-input",
+      placeholder: `Option ${i + 1}`,
+      value: opt,
+      onChange: (e) => {
+        const o = [...q.options];
+        o[i] = e.target.value;
+        set({ options: o });
+      }
+    }
+  ), q.options.length > 2 && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "ip-icon ip-icon-red",
+      onClick: () => set({ options: q.options.filter((_, j) => j !== i) })
+    },
+    "\u2715"
+  ))), q.options.length < 8 && /* @__PURE__ */ React.createElement("button", { className: "ip-chip ip-chip-ghost", onClick: () => set({ options: [...q.options, ""] }) }, "+ \u9078\u629E\u80A2\u3092\u8FFD\u52A0")), q.type === "scale" && /* @__PURE__ */ React.createElement("div", { className: "ip-scale-cfg" }, /* @__PURE__ */ React.createElement("div", { className: "ip-scale-range" }, /* @__PURE__ */ React.createElement("label", null, "MIN", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      className: "ip-input ip-input-num",
+      type: "number",
+      value: q.scaleMin,
+      onChange: (e) => set({ scaleMin: clampInt(e.target.value, 0, 9, 1) })
+    }
+  )), /* @__PURE__ */ React.createElement("label", null, "MAX", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      className: "ip-input ip-input-num",
+      type: "number",
+      value: q.scaleMax,
+      onChange: (e) => set({ scaleMax: clampInt(e.target.value, 2, 10, 5) })
+    }
+  ))), /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "\u5DE6\u7AEF\u30E9\u30D9\u30EB"), /* @__PURE__ */ React.createElement("input", { className: "ip-input", value: q.minLabel || "", onChange: (e) => set({ minLabel: e.target.value }) })), /* @__PURE__ */ React.createElement("label", { className: "ip-field" }, /* @__PURE__ */ React.createElement("span", { className: "ip-field-label" }, "\u53F3\u7AEF\u30E9\u30D9\u30EB"), /* @__PURE__ */ React.createElement("input", { className: "ip-input", value: q.maxLabel || "", onChange: (e) => set({ maxLabel: e.target.value }) }))), /* @__PURE__ */ React.createElement("div", { className: "ip-editor-foot" }, /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: onCancel }, "CANCEL"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "ip-btn-primary",
+      disabled: !valid,
+      onClick: () => onCommit({ ...q, options: q.options ? q.options.filter((o) => o.trim()) : void 0 })
+    },
+    "\u3053\u306E\u554F\u3044\u3092\u4FDD\u5B58"
+  )));
 }
-function clampInt(v, min, max, fb) { const n = parseInt(v, 10); return Number.isNaN(n) ? fb : Math.max(min, Math.min(max, n)); }
-
-/* ===================== PRESENTER (COACH live) ===================== */
+function clampInt(v, min, max, fb) {
+  const n = parseInt(v, 10);
+  return Number.isNaN(n) ? fb : Math.max(min, Math.min(max, n));
+}
 function Presenter({ config, pushConfig, onExit, onEdit }) {
   const [votes, setVotes] = useState([]);
   const qs = config.questions || [];
   const ai = config.activeIndex;
   const q = ai >= 0 && ai < qs.length ? qs[ai] : null;
-
   useEffect(() => {
-    if (ai < 0) { setVotes([]); return; }
+    if (ai < 0) {
+      setVotes([]);
+      return;
+    }
     return listenVotes(config.sessionId, ai, setVotes);
   }, [ai, config.sessionId]);
-
   const go = (dir) => pushConfig({ ...config, activeIndex: Math.max(-1, Math.min(qs.length - 1, ai + dir)) });
   const jumpTo = (i) => pushConfig({ ...config, activeIndex: i });
   const toggleReveal = () => pushConfig({ ...config, revealResults: !config.revealResults });
   const atEnd = ai >= qs.length - 1;
-
-  return (
-    <div className="ip-stage-wrap ip-pitch">
-      <PitchLines />
-      <div className="ip-stage-inner">
-        <header className="ip-scoreboard">
-          <div className="ip-sb-left">
-            <span className="ip-live"><i className="ip-livedot" />LIVE</span>
-            <span className="ip-sb-q">{ai < 0 ? "WARM-UP" : <>INQUIRY <b>{String(ai + 1).padStart(2, "0")}</b><span className="ip-sb-slash">/</span>{String(qs.length).padStart(2, "0")}</>}</span>
-          </div>
-          <div className="ip-sb-right">
-            <div className="ip-sb-count"><span className="ip-sb-count-num">{votes.length}</span><span className="ip-sb-count-lbl">RESPONSES</span></div>
-            <button className="ip-link ip-link-light" onClick={onEdit}>EDIT</button>
-            <button className="ip-link ip-link-light" onClick={onExit}>EXIT</button>
-          </div>
-        </header>
-
-        <main className="ip-stage">
-          {ai < 0 ? (
-            <WaitingStage qs={qs} onPick={jumpTo} />
-          ) : (
-            <div className="ip-stage-q" key={ai}>
-              <div className="ip-stage-qtext">{q.text}</div>
-              <Results q={q} votes={votes} big />
-            </div>
-          )}
-        </main>
-
-        <footer className="ip-controls">
-          <button className="ip-ctrl" onClick={() => go(-1)} disabled={ai < 0}>← PREV</button>
-          <button className="ip-ctrl ip-ctrl-toggle" data-on={config.revealResults} onClick={toggleReveal}>
-            {config.revealResults ? "結果を全員に表示中 👁" : "結果は伏せています ◓"}
-          </button>
-          {ai < 0 ? (
-            <button className="ip-ctrl ip-ctrl-go" onClick={() => go(1)}><SoccerBall size={20} /> KICK OFF</button>
-          ) : atEnd ? (
-            <button className="ip-ctrl ip-ctrl-end" onClick={() => jumpTo(-1)}>FULL TIME 🏁</button>
-          ) : (
-            <button className="ip-ctrl ip-ctrl-go" onClick={() => go(1)}>NEXT →</button>
-          )}
-        </footer>
-      </div>
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-stage-wrap ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, null), /* @__PURE__ */ React.createElement("div", { className: "ip-stage-inner" }, /* @__PURE__ */ React.createElement("header", { className: "ip-scoreboard" }, /* @__PURE__ */ React.createElement("div", { className: "ip-sb-left" }, /* @__PURE__ */ React.createElement("span", { className: "ip-live" }, /* @__PURE__ */ React.createElement("i", { className: "ip-livedot" }), "LIVE"), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-q" }, ai < 0 ? "WARM-UP" : /* @__PURE__ */ React.createElement(React.Fragment, null, "INQUIRY ", /* @__PURE__ */ React.createElement("b", null, String(ai + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-slash" }, "/"), String(qs.length).padStart(2, "0")))), /* @__PURE__ */ React.createElement("div", { className: "ip-sb-right" }, /* @__PURE__ */ React.createElement("div", { className: "ip-sb-count" }, /* @__PURE__ */ React.createElement("span", { className: "ip-sb-count-num" }, votes.length), /* @__PURE__ */ React.createElement("span", { className: "ip-sb-count-lbl" }, "RESPONSES")), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onEdit }, "EDIT"), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onExit }, "EXIT"))), /* @__PURE__ */ React.createElement("main", { className: "ip-stage" }, ai < 0 ? /* @__PURE__ */ React.createElement(WaitingStage, { qs, onPick: jumpTo }) : /* @__PURE__ */ React.createElement("div", { className: "ip-stage-q", key: ai }, /* @__PURE__ */ React.createElement("div", { className: "ip-stage-qtext" }, q.text), /* @__PURE__ */ React.createElement(Results, { q, votes, big: true }))), /* @__PURE__ */ React.createElement("footer", { className: "ip-controls" }, /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl", onClick: () => go(-1), disabled: ai < 0 }, "\u2190 PREV"), /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-toggle", "data-on": config.revealResults, onClick: toggleReveal }, config.revealResults ? "\u7D50\u679C\u3092\u5168\u54E1\u306B\u8868\u793A\u4E2D \u{1F441}" : "\u7D50\u679C\u306F\u4F0F\u305B\u3066\u3044\u307E\u3059 \u25D3"), ai < 0 ? /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-go", onClick: () => go(1) }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 20 }), " KICK OFF") : atEnd ? /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-end", onClick: () => jumpTo(-1) }, "FULL TIME \u{1F3C1}") : /* @__PURE__ */ React.createElement("button", { className: "ip-ctrl ip-ctrl-go", onClick: () => go(1) }, "NEXT \u2192"))));
 }
-
 function WaitingStage({ qs, onPick }) {
-  return (
-    <div className="ip-waiting-stage">
-      <div className="ip-waiting-head">
-        <BouncingBall />
-        <div>
-          <div className="ip-eyebrow ip-eyebrow-light">TEAM TALK</div>
-          <h2 className="ip-h2">PLAYERの準備ができたら、問いをキックオフ</h2>
-          <p className="ip-muted-light">NEXT で順番に進むか、下の問いを直接クリック。</p>
-        </div>
-      </div>
-      <div className="ip-lineup">
-        {qs.map((q, i) => (
-          <button className="ip-lineup-item" key={q.id} onClick={() => onPick(i)}>
-            <span className="ip-q-no ip-q-no-light">{String(i + 1).padStart(2, "0")}</span>
-            <span className="ip-lineup-text">{q.text}</span>
-            <span className="ip-lineup-type">{typeLabel(q)}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-waiting-stage" }, /* @__PURE__ */ React.createElement("div", { className: "ip-waiting-head" }, /* @__PURE__ */ React.createElement(BouncingBall, null), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow ip-eyebrow-light" }, "TEAM TALK"), /* @__PURE__ */ React.createElement("h2", { className: "ip-h2" }, "PLAYER\u306E\u6E96\u5099\u304C\u3067\u304D\u305F\u3089\u3001\u554F\u3044\u3092\u30AD\u30C3\u30AF\u30AA\u30D5"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted-light" }, "NEXT \u3067\u9806\u756A\u306B\u9032\u3080\u304B\u3001\u4E0B\u306E\u554F\u3044\u3092\u76F4\u63A5\u30AF\u30EA\u30C3\u30AF\u3002"))), /* @__PURE__ */ React.createElement("div", { className: "ip-lineup" }, qs.map((q, i) => /* @__PURE__ */ React.createElement("button", { className: "ip-lineup-item", key: q.id, onClick: () => onPick(i) }, /* @__PURE__ */ React.createElement("span", { className: "ip-q-no ip-q-no-light" }, String(i + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("span", { className: "ip-lineup-text" }, q.text), /* @__PURE__ */ React.createElement("span", { className: "ip-lineup-type" }, typeLabel(q))))));
 }
-
-/* ===================== PARTICIPANT (PLAYER) ===================== */
 const CHEERS = ["Ready to play?", "Think in English!", "Your idea matters.", "Take a shot!", "No wrong answers."];
-
 function Participant({ config, pid, onLeave }) {
   const [nickname, setNickname] = useState("");
   const [nameDraft, setNameDraft] = useState("");
@@ -457,159 +301,81 @@ function Participant({ config, pid, onLeave }) {
   const [goalKey, setGoalKey] = useState(0);
   const [showGoal, setShowGoal] = useState(false);
   const [cheer, setCheer] = useState(0);
-
-  useEffect(() => { const t = setInterval(() => setCheer((c) => (c + 1) % CHEERS.length), 2600); return () => clearInterval(t); }, []);
-
+  useEffect(() => {
+    const t = setInterval(() => setCheer((c) => (c + 1) % CHEERS.length), 2600);
+    return () => clearInterval(t);
+  }, []);
   const ai = config ? config.activeIndex : -1;
   const qs = config ? config.questions || [] : [];
   const q = ai >= 0 && ai < qs.length ? qs[ai] : null;
   const sid = config ? config.sessionId : "";
-  const answered = answers[`${sid}:${ai}`] !== undefined;
-
+  const answered = answers[`${sid}:${ai}`] !== void 0;
   useEffect(() => {
-    if (!config || !config.revealResults || ai < 0) { setVotes([]); return; }
+    if (!config || !config.revealResults || ai < 0) {
+      setVotes([]);
+      return;
+    }
     return listenVotes(sid, ai, setVotes);
   }, [config && config.revealResults, ai, sid]);
-
-  useEffect(() => { setTextDraft(""); }, [ai, sid]);
-
+  useEffect(() => {
+    setTextDraft("");
+  }, [ai, sid]);
   const submit = async (value) => {
     setAnswers((p) => ({ ...p, [`${sid}:${ai}`]: value }));
-    setGoalKey((k) => k + 1); setShowGoal(true);
+    setGoalKey((k) => k + 1);
+    setShowGoal(true);
     setTimeout(() => setShowGoal(false), 1900);
     writeVote(sid, ai, pid, { a: value, n: nickname });
   };
-
-  if (!config) return <div className="ip-center"><SoccerBall spin /><span className="ip-loading">CONNECTING…</span></div>;
-
-  // ニックネーム未登録なら登録ゲートを表示
+  if (!config) return /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement(SoccerBall, { spin: true }), /* @__PURE__ */ React.createElement("span", { className: "ip-loading" }, "CONNECTING\u2026"));
   if (!nickname) {
     const can = nameDraft.trim().length > 0;
-    const register = () => { const n = nameDraft.trim().slice(0, 16); if (n) setNickname(n); };
-    return (
-      <div className="ip-join">
-        <header className="ip-join-top ip-pitch">
-          <PitchLines compact />
-          <div className="ip-join-top-row">
-            <span className="ip-join-title">{config.title || "INQUIRY PITCH"}</span>
-            <button className="ip-link ip-link-light" onClick={onLeave}>EXIT</button>
-          </div>
-        </header>
-        <div className="ip-join-body">
-          <div className="ip-reg">
-            <div className="ip-reg-jersey">
-              <span className="ip-reg-jersey-no">07</span>
-              <span className="ip-reg-jersey-name">{nameDraft.trim().slice(0, 16).toUpperCase() || "YOUR NAME"}</span>
-            </div>
-            <div className="ip-eyebrow">PLAYER REGISTRATION · 選手登録</div>
-            <h2 className="ip-join-qtext">ニックネームを入力</h2>
-            <p className="ip-muted">回答に表示される名前です（あとから変えられません）。</p>
-            <input className="ip-input ip-input-lg ip-reg-input" value={nameDraft} maxLength={16}
-              placeholder="例）はると / Haruto"
-              onChange={(e) => setNameDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") register(); }} autoFocus />
-            <button className="ip-btn-primary ip-btn-block" disabled={!can} onClick={register}>
-              JOIN THE PITCH 参加する
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    const register = () => {
+      const n = nameDraft.trim().slice(0, 16);
+      if (n) setNickname(n);
+    };
+    return /* @__PURE__ */ React.createElement("div", { className: "ip-join" }, /* @__PURE__ */ React.createElement("header", { className: "ip-join-top ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, { compact: true }), /* @__PURE__ */ React.createElement("div", { className: "ip-join-top-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-join-title" }, config.title || "INQUIRY PITCH"), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onLeave }, "EXIT"))), /* @__PURE__ */ React.createElement("div", { className: "ip-join-body" }, /* @__PURE__ */ React.createElement("div", { className: "ip-reg" }, /* @__PURE__ */ React.createElement("div", { className: "ip-reg-jersey" }, /* @__PURE__ */ React.createElement("span", { className: "ip-reg-jersey-no" }, "07"), /* @__PURE__ */ React.createElement("span", { className: "ip-reg-jersey-name" }, nameDraft.trim().slice(0, 16).toUpperCase() || "YOUR NAME")), /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "PLAYER REGISTRATION \xB7 \u9078\u624B\u767B\u9332"), /* @__PURE__ */ React.createElement("h2", { className: "ip-join-qtext" }, "\u30CB\u30C3\u30AF\u30CD\u30FC\u30E0\u3092\u5165\u529B"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted" }, "\u56DE\u7B54\u306B\u8868\u793A\u3055\u308C\u308B\u540D\u524D\u3067\u3059\uFF08\u3042\u3068\u304B\u3089\u5909\u3048\u3089\u308C\u307E\u305B\u3093\uFF09\u3002"), /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        className: "ip-input ip-input-lg ip-reg-input",
+        value: nameDraft,
+        maxLength: 16,
+        placeholder: "\u4F8B\uFF09\u306F\u308B\u3068 / Haruto",
+        onChange: (e) => setNameDraft(e.target.value),
+        onKeyDown: (e) => {
+          if (e.key === "Enter") register();
+        },
+        autoFocus: true
+      }
+    ), /* @__PURE__ */ React.createElement("button", { className: "ip-btn-primary ip-btn-block", disabled: !can, onClick: register }, "JOIN THE PITCH \u53C2\u52A0\u3059\u308B"))));
   }
-
-  return (
-    <div className="ip-join">
-      {showGoal && <GoalOverlay key={goalKey} name={nickname} />}
-      <header className="ip-join-top ip-pitch">
-        <PitchLines compact />
-        <div className="ip-join-top-row">
-          <span className="ip-live ip-live-sm"><i className="ip-livedot" />LIVE</span>
-          <span className="ip-join-title">{config.title || "INQUIRY PITCH"}</span>
-          <span className="ip-myname" title="あなたの名前">#{nickname}</span>
-          <button className="ip-link ip-link-light" onClick={onLeave}>EXIT</button>
-        </div>
-      </header>
-
-      <div className="ip-join-body">
-        {ai < 0 ? (
-          <div className="ip-join-wait">
-            <BouncingBall big />
-            <p className="ip-cheer">{CHEERS[cheer]}</p>
-            <p className="ip-h2">まもなくキックオフ</p>
-            <p className="ip-muted">COACHが問いを出すまで待機中…</p>
-          </div>
-        ) : (
-          <>
-            <div className="ip-join-no">INQUIRY {String(ai + 1).padStart(2, "0")} / {String(qs.length).padStart(2, "0")}</div>
-            <h2 className="ip-join-qtext">{q.text}</h2>
-
-            {!answered ? (
-              <AnswerInput q={q} textDraft={textDraft} setTextDraft={setTextDraft} onSubmit={submit} />
-            ) : (
-              <div className="ip-thanks">
-                <div className="ip-thanks-badge"><SoccerBall size={30} /></div>
-                <span className="ip-thanks-en">GREAT SHOT!</span>
-                <span className="ip-thanks-jp">回答を送信しました</span>
-                {q.type !== "text" && (
-                  <button className="ip-link" onClick={() =>
-                    setAnswers((p) => { const c = { ...p }; delete c[`${sid}:${ai}`]; return c; })}>
-                    回答を変更する
-                  </button>
-                )}
-              </div>
-            )}
-
-            {config.revealResults && (
-              <div className="ip-join-results">
-                <div className="ip-results-label">TEAM RESULT — みんなの回答（{votes.length}）</div>
-                <Results q={q} votes={votes} />
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-join" }, showGoal && /* @__PURE__ */ React.createElement(GoalOverlay, { key: goalKey, name: nickname }), /* @__PURE__ */ React.createElement("header", { className: "ip-join-top ip-pitch" }, /* @__PURE__ */ React.createElement(PitchLines, { compact: true }), /* @__PURE__ */ React.createElement("div", { className: "ip-join-top-row" }, /* @__PURE__ */ React.createElement("span", { className: "ip-live ip-live-sm" }, /* @__PURE__ */ React.createElement("i", { className: "ip-livedot" }), "LIVE"), /* @__PURE__ */ React.createElement("span", { className: "ip-join-title" }, config.title || "INQUIRY PITCH"), /* @__PURE__ */ React.createElement("span", { className: "ip-myname", title: "\u3042\u306A\u305F\u306E\u540D\u524D" }, "#", nickname), /* @__PURE__ */ React.createElement("button", { className: "ip-link ip-link-light", onClick: onLeave }, "EXIT"))), /* @__PURE__ */ React.createElement("div", { className: "ip-join-body" }, ai < 0 ? /* @__PURE__ */ React.createElement("div", { className: "ip-join-wait" }, /* @__PURE__ */ React.createElement(BouncingBall, { big: true }), /* @__PURE__ */ React.createElement("p", { className: "ip-cheer" }, CHEERS[cheer]), /* @__PURE__ */ React.createElement("p", { className: "ip-h2" }, "\u307E\u3082\u306A\u304F\u30AD\u30C3\u30AF\u30AA\u30D5"), /* @__PURE__ */ React.createElement("p", { className: "ip-muted" }, "COACH\u304C\u554F\u3044\u3092\u51FA\u3059\u307E\u3067\u5F85\u6A5F\u4E2D\u2026")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "ip-join-no" }, "INQUIRY ", String(ai + 1).padStart(2, "0"), " / ", String(qs.length).padStart(2, "0")), /* @__PURE__ */ React.createElement("h2", { className: "ip-join-qtext" }, q.text), !answered ? /* @__PURE__ */ React.createElement(AnswerInput, { q, textDraft, setTextDraft, onSubmit: submit }) : /* @__PURE__ */ React.createElement("div", { className: "ip-thanks" }, /* @__PURE__ */ React.createElement("div", { className: "ip-thanks-badge" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 30 })), /* @__PURE__ */ React.createElement("span", { className: "ip-thanks-en" }, "GREAT SHOT!"), /* @__PURE__ */ React.createElement("span", { className: "ip-thanks-jp" }, "\u56DE\u7B54\u3092\u9001\u4FE1\u3057\u307E\u3057\u305F"), q.type !== "text" && /* @__PURE__ */ React.createElement("button", { className: "ip-link", onClick: () => setAnswers((p) => {
+    const c = { ...p };
+    delete c[`${sid}:${ai}`];
+    return c;
+  }) }, "\u56DE\u7B54\u3092\u5909\u66F4\u3059\u308B")), config.revealResults && /* @__PURE__ */ React.createElement("div", { className: "ip-join-results" }, /* @__PURE__ */ React.createElement("div", { className: "ip-results-label" }, "TEAM RESULT \u2014 \u307F\u3093\u306A\u306E\u56DE\u7B54\uFF08", votes.length, "\uFF09"), /* @__PURE__ */ React.createElement(Results, { q, votes })))));
 }
-
 function AnswerInput({ q, textDraft, setTextDraft, onSubmit }) {
   if (q.type === "choice") {
-    return (
-      <div className="ip-answer-choices">
-        {q.options.map((opt, i) => (
-          <button key={i} className="ip-answer-btn" onClick={() => onSubmit(i)}>
-            <span className="ip-jersey">{String.fromCharCode(65 + i)}</span>
-            <span className="ip-answer-text">{opt}</span>
-            <span className="ip-answer-kick">⚽</span>
-          </button>
-        ))}
-      </div>
-    );
+    return /* @__PURE__ */ React.createElement("div", { className: "ip-answer-choices" }, q.options.map((opt, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "ip-answer-btn", onClick: () => onSubmit(i) }, /* @__PURE__ */ React.createElement("span", { className: "ip-jersey" }, String.fromCharCode(65 + i)), /* @__PURE__ */ React.createElement("span", { className: "ip-answer-text" }, opt), /* @__PURE__ */ React.createElement("span", { className: "ip-answer-kick" }, "\u26BD"))));
   }
   if (q.type === "scale") {
-    const nums = []; for (let n = q.scaleMin; n <= q.scaleMax; n++) nums.push(n);
-    return (
-      <div className="ip-scale-answer">
-        <div className="ip-scale-btns">
-          {nums.map((n) => <button key={n} className="ip-scale-btn" onClick={() => onSubmit(n)}>{n}</button>)}
-        </div>
-        <div className="ip-scale-ends"><span>{q.minLabel}</span><span>{q.maxLabel}</span></div>
-      </div>
-    );
+    const nums = [];
+    for (let n = q.scaleMin; n <= q.scaleMax; n++) nums.push(n);
+    return /* @__PURE__ */ React.createElement("div", { className: "ip-scale-answer" }, /* @__PURE__ */ React.createElement("div", { className: "ip-scale-btns" }, nums.map((n) => /* @__PURE__ */ React.createElement("button", { key: n, className: "ip-scale-btn", onClick: () => onSubmit(n) }, n))), /* @__PURE__ */ React.createElement("div", { className: "ip-scale-ends" }, /* @__PURE__ */ React.createElement("span", null, q.minLabel), /* @__PURE__ */ React.createElement("span", null, q.maxLabel)));
   }
   const can = textDraft.trim().length > 0;
-  return (
-    <div className="ip-text-answer">
-      <textarea className="ip-input ip-textarea" rows={3} placeholder="Write your idea — 自由に入力"
-        value={textDraft} onChange={(e) => setTextDraft(e.target.value)} />
-      <button className="ip-btn-primary ip-btn-block" disabled={!can} onClick={() => onSubmit(textDraft.trim())}>
-        SHOOT! 送信
-      </button>
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-text-answer" }, /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      className: "ip-input ip-textarea",
+      rows: 3,
+      placeholder: "Write your idea \u2014 \u81EA\u7531\u306B\u5165\u529B",
+      value: textDraft,
+      onChange: (e) => setTextDraft(e.target.value)
+    }
+  ), /* @__PURE__ */ React.createElement("button", { className: "ip-btn-primary ip-btn-block", disabled: !can, onClick: () => onSubmit(textDraft.trim()) }, "SHOOT! \u9001\u4FE1"));
 }
-
-/* ===================== GOAL OVERLAY + CONFETTI ===================== */
 function GoalOverlay({ name }) {
   const pieces = useMemo(() => {
     const colors = ["#F4C430", "#1f9a4d", "#E63329", "#2E6FE0", "#ffffff", "#FF8A00"];
@@ -617,44 +383,28 @@ function GoalOverlay({ name }) {
       left: Math.random() * 100,
       delay: Math.random() * 0.25,
       dur: 1.1 + Math.random() * 0.8,
-      bg: colors[(Math.random() * colors.length) | 0],
+      bg: colors[Math.random() * colors.length | 0],
       rot: Math.random() * 360,
       size: 7 + Math.random() * 8,
-      round: Math.random() > 0.6,
+      round: Math.random() > 0.6
     }));
   }, []);
-  return (
-    <div className="ip-goal-overlay">
-      <div className="ip-confetti">
-        {pieces.map((p, i) => (
-          <span key={i} className="ip-confetto" style={{
-            left: `${p.left}%`, animationDelay: `${p.delay}s`, animationDuration: `${p.dur}s`,
-            background: p.bg, width: p.size, height: p.size,
-            borderRadius: p.round ? "50%" : "2px", transform: `rotate(${p.rot}deg)`,
-          }} />
-        ))}
-      </div>
-      <div className="ip-goal-burst">
-        <SoccerBall size={62} className="ip-goal-ball" />
-        <div className="ip-goal-text">GOAL!!</div>
-        <div className="ip-goal-sub">{name ? `GOAL by ${name}!` : "ナイス回答！"}</div>
-      </div>
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-goal-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "ip-confetti" }, pieces.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: i, className: "ip-confetto", style: {
+    left: `${p.left}%`,
+    animationDelay: `${p.delay}s`,
+    animationDuration: `${p.dur}s`,
+    background: p.bg,
+    width: p.size,
+    height: p.size,
+    borderRadius: p.round ? "50%" : "2px",
+    transform: `rotate(${p.rot}deg)`
+  } }))), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-burst" }, /* @__PURE__ */ React.createElement(SoccerBall, { size: 62, className: "ip-goal-ball" }), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-text" }, "GOAL!!"), /* @__PURE__ */ React.createElement("div", { className: "ip-goal-sub" }, name ? `GOAL by ${name}!` : "\u30CA\u30A4\u30B9\u56DE\u7B54\uFF01")));
 }
-
 function BouncingBall({ big }) {
-  return (
-    <div className={`ip-bounce ${big ? "ip-bounce-big" : ""}`}>
-      <SoccerBall size={big ? 60 : 44} className="ip-bounce-ball" />
-      <span className="ip-bounce-shadow" />
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: `ip-bounce ${big ? "ip-bounce-big" : ""}` }, /* @__PURE__ */ React.createElement(SoccerBall, { size: big ? 60 : 44, className: "ip-bounce-ball" }), /* @__PURE__ */ React.createElement("span", { className: "ip-bounce-shadow" }));
 }
-
-/* ===================== RESULTS ===================== */
 function Results({ q, votes, big }) {
-  if (q.type === "text") return <TextResults votes={votes} big={big} />;
+  if (q.type === "text") return /* @__PURE__ */ React.createElement(TextResults, { votes, big });
   let labels = [];
   if (q.type === "choice") labels = q.options.map((o, i) => ({ key: i, label: o }));
   else for (let n = q.scaleMin; n <= q.scaleMax; n++) labels.push({ key: n, label: String(n) });
@@ -663,73 +413,22 @@ function Results({ q, votes, big }) {
   const maxC = Math.max(1, ...counts);
   let avg = null;
   if (q.type === "scale" && total > 0) avg = (votes.reduce((s, v) => s + Number(v.a), 0) / total).toFixed(2);
-
-  return (
-    <div className={`ip-results ${big ? "ip-results-big" : ""}`}>
-      {q.type === "scale" && (
-        <div className="ip-avg">AVG <b className="ip-avg-num">{avg ?? "—"}</b>
-          {q.minLabel && <span className="ip-avg-ends">{q.minLabel} … {q.maxLabel}</span>}</div>
-      )}
-      {labels.map((l, i) => {
-        const c = counts[i]; const pct = total ? Math.round((c / total) * 100) : 0;
-        const names = votes.filter((v) => v.a === l.key).map((v) => v.n).filter(Boolean);
-        return (
-          <div className="ip-bar-row" key={l.key}>
-            <div className="ip-bar-main">
-              <div className="ip-bar-label" title={l.label}>
-                {q.type === "choice" && <span className="ip-jersey ip-jersey-sm">{String.fromCharCode(65 + i)}</span>}
-                <span className="ip-bar-text">{l.label}</span>
-              </div>
-              <div className="ip-bar-track">
-                <div className="ip-bar-fill" style={{ width: `${total ? (c / maxC) * 100 : 0}%` }} />
-                <span className="ip-bar-val">{pct}%<span className="ip-bar-count"> ({c})</span></span>
-              </div>
-            </div>
-            {names.length > 0 && (
-              <div className="ip-names">
-                {names.map((nm, k) => <span className="ip-name-chip" key={k}>{nm}</span>)}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: `ip-results ${big ? "ip-results-big" : ""}` }, q.type === "scale" && /* @__PURE__ */ React.createElement("div", { className: "ip-avg" }, "AVG ", /* @__PURE__ */ React.createElement("b", { className: "ip-avg-num" }, avg != null ? avg : "\u2014"), q.minLabel && /* @__PURE__ */ React.createElement("span", { className: "ip-avg-ends" }, q.minLabel, " \u2026 ", q.maxLabel)), labels.map((l, i) => {
+    const c = counts[i];
+    const pct = total ? Math.round(c / total * 100) : 0;
+    const names = votes.filter((v) => v.a === l.key).map((v) => v.n).filter(Boolean);
+    return /* @__PURE__ */ React.createElement("div", { className: "ip-bar-row", key: l.key }, /* @__PURE__ */ React.createElement("div", { className: "ip-bar-main" }, /* @__PURE__ */ React.createElement("div", { className: "ip-bar-label", title: l.label }, q.type === "choice" && /* @__PURE__ */ React.createElement("span", { className: "ip-jersey ip-jersey-sm" }, String.fromCharCode(65 + i)), /* @__PURE__ */ React.createElement("span", { className: "ip-bar-text" }, l.label)), /* @__PURE__ */ React.createElement("div", { className: "ip-bar-track" }, /* @__PURE__ */ React.createElement("div", { className: "ip-bar-fill", style: { width: `${total ? c / maxC * 100 : 0}%` } }), /* @__PURE__ */ React.createElement("span", { className: "ip-bar-val" }, pct, "%", /* @__PURE__ */ React.createElement("span", { className: "ip-bar-count" }, " (", c, ")")))), names.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "ip-names" }, names.map((nm, k) => /* @__PURE__ */ React.createElement("span", { className: "ip-name-chip", key: k }, nm))));
+  }));
 }
 function TextResults({ votes, big }) {
-  if (!votes.length) return <div className="ip-muted ip-text-empty">まだ回答がありません</div>;
-  return (
-    <div className={`ip-text-results ${big ? "ip-text-big" : ""}`}>
-      {[...votes].reverse().map((v, i) => (
-        <div className="ip-text-card" key={i}>
-          <span className="ip-text-name">{v.n || "名無し"}</span>
-          <span className="ip-text-body">{String(v.a)}</span>
-        </div>
-      ))}
-    </div>
-  );
+  if (!votes.length) return /* @__PURE__ */ React.createElement("div", { className: "ip-muted ip-text-empty" }, "\u307E\u3060\u56DE\u7B54\u304C\u3042\u308A\u307E\u305B\u3093");
+  return /* @__PURE__ */ React.createElement("div", { className: `ip-text-results ${big ? "ip-text-big" : ""}` }, [...votes].reverse().map((v, i) => /* @__PURE__ */ React.createElement("div", { className: "ip-text-card", key: i }, /* @__PURE__ */ React.createElement("span", { className: "ip-text-name" }, v.n || "\u540D\u7121\u3057"), /* @__PURE__ */ React.createElement("span", { className: "ip-text-body" }, String(v.a)))));
 }
-
-/* ===================== CONFIG NOTICE ===================== */
 function ConfigNotice() {
-  return (
-    <div className="ip-center">
-      <div className="ip-hero" style={{ background: "#fff" }}>
-        <div className="ip-eyebrow">SETUP REQUIRED</div>
-        <h2 className="ip-h2">Firebaseの設定を入力してください</h2>
-        <p className="ip-lead">
-          index.html 内の <code>__FIREBASE_CONFIG__</code> に、ご自身のFirebaseプロジェクトの設定
-          （特に <b>databaseURL</b>）を貼り付けると起動します。手順はREADMEを参照してください。
-        </p>
-      </div>
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { className: "ip-center" }, /* @__PURE__ */ React.createElement("div", { className: "ip-hero", style: { background: "#fff" } }, /* @__PURE__ */ React.createElement("div", { className: "ip-eyebrow" }, "SETUP REQUIRED"), /* @__PURE__ */ React.createElement("h2", { className: "ip-h2" }, "Firebase\u306E\u8A2D\u5B9A\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044"), /* @__PURE__ */ React.createElement("p", { className: "ip-lead" }, "index.html \u5185\u306E ", /* @__PURE__ */ React.createElement("code", null, "__FIREBASE_CONFIG__"), " \u306B\u3001\u3054\u81EA\u8EAB\u306EFirebase\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306E\u8A2D\u5B9A \uFF08\u7279\u306B ", /* @__PURE__ */ React.createElement("b", null, "databaseURL"), "\uFF09\u3092\u8CBC\u308A\u4ED8\u3051\u308B\u3068\u8D77\u52D5\u3057\u307E\u3059\u3002\u624B\u9806\u306FREADME\u3092\u53C2\u7167\u3057\u3066\u304F\u3060\u3055\u3044\u3002")));
 }
-
-/* ===================== STYLES ===================== */
 function StyleTag() {
-  return (
-    <style>{`
+  return /* @__PURE__ */ React.createElement("style", null, `
 @import url('https://fonts.googleapis.com/css2?family=Anton&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap');
 
 .ip-root{
@@ -993,14 +692,10 @@ function StyleTag() {
   .ip-root *{animation:none!important;transition:none!important;}
   .ip-confetto{display:none;}
 }
-    `}</style>
-  );
+    `);
 }
-
-
-/* ===================== MOUNT ===================== */
 const __root = ReactDOM.createRoot(document.getElementById("root"));
-__root.render(<App />);
+__root.render(/* @__PURE__ */ React.createElement(App, null));
 
 </script>
 </body>
